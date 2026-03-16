@@ -1,0 +1,1 @@
+"""DragonScope-AShare application package."""

@@ -15,6 +15,9 @@ env/
 .env.*
 !.env.example
 
+# Local theme mapping
+data/theme_rules.json
+
 # OS
 .DS_Store
 
