@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Virtual env
+.venv/
+venv/
+env/
+
+# OS
+.DS_Store
+
+# Local data
+data/db/*.db
+data/db/*.sqlite
+data/db/*.sqlite3
+data/exports/*
+!data/exports/.gitkeep
+
+# Generated reviews
+reviews/daily/*
+reviews/period/*
+reviews/compare/*
+!reviews/daily/.gitkeep
+!reviews/period/.gitkeep
+!reviews/compare/.gitkeep
