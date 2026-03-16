@@ -82,7 +82,7 @@
 
 ## 当前进度
 
-当前阶段：`v0.1 文档 + Demo`
+当前阶段：`v0.2 数据底座起步版`
 
 已完成：
 
@@ -90,13 +90,17 @@
 2. 详细设计说明
 3. 开源仓库基础骨架
 4. 一个基于 `Tushare` 的单日复盘生成脚本 Demo
+5. 本地 SQLite 数据库结构
+6. 单日同步脚本
+7. 周期复盘脚本
+8. 多日横向对比脚本
 
 下一阶段：
 
-1. 本地数据库
-2. 单日数据同步
-3. 周期复盘引擎
-4. 多日横向对比引擎
+1. 题材聚合能力增强
+2. 周期复盘指标增强
+3. 横向对比结果增强
+4. 本地 Web 工作台
 
 ## 仓库结构
 
@@ -137,12 +141,41 @@ export TUSHARE_TOKEN=你的token
 python scripts/generate_daily_review.py --date 20260316
 ```
 
+### 4. 初始化本地数据库
+
+```bash
+python scripts/init_db.py
+```
+
+### 5. 同步单日数据到本地数据库
+
+```bash
+export TUSHARE_TOKEN=你的token
+python scripts/sync_day.py --date 20260316
+```
+
+### 6. 生成周期复盘
+
+```bash
+python scripts/generate_period_review.py --start 20260313 --end 20260316 --period-type custom
+```
+
+### 7. 生成横向对比
+
+```bash
+python scripts/compare_periods.py \
+  --left-start 20260313 --left-end 20260313 \
+  --right-start 20260316 --right-end 20260316 \
+  --compare-type day_vs_day
+```
+
 ## 文档入口
 
 1. [系统设计稿](./docs/system-design.md)
 2. [系统详细设计说明](./docs/system-spec-v1.md)
 3. [项目路线图](./ROADMAP.md)
 4. [项目总控文件](./PROJECT_CONTROL.md)
+5. [GitHub 管理清单](./GITHUB_SETUP.md)
 
 ## 项目命名说明
 
