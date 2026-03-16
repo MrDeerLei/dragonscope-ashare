@@ -10,6 +10,11 @@ __pycache__/
 venv/
 env/
 
+# Environment files
+.env
+.env.*
+!.env.example
+
 # OS
 .DS_Store
 
