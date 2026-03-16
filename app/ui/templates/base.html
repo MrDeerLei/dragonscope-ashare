@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}DragonScope-AShare{% endblock %}</title>
+  <style>
+    :root {
+      --bg: radial-gradient(circle at 20% 20%, #11213d, #081226 60%, #04070f);
+      --panel: rgba(16, 24, 39, 0.85);
+      --panel-soft: rgba(16, 24, 39, 0.65);
+      --text: #f2f6ff;
+      --muted: #a5b4cc;
+      --line: rgba(165, 180, 204, 0.22);
+      --primary: #48d4b5;
+      --secondary: #f6c453;
+      --danger: #ff6f78;
+      --shadow: 0 14px 32px rgba(0, 0, 0, 0.35);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      color: var(--text);
+      background: var(--bg);
+      min-height: 100vh;
+    }
+    .wrap {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .topbar {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+    .topbar a {
+      text-decoration: none;
+      color: var(--text);
+      padding: 8px 12px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--panel-soft);
+      transition: 0.2s ease;
+      font-size: 14px;
+    }
+    .topbar a:hover {
+      border-color: var(--primary);
+      transform: translateY(-1px);
+    }
+    .hero {
+      background: linear-gradient(135deg, rgba(72, 212, 181, 0.14), rgba(246, 196, 83, 0.12));
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 16px 18px;
+      box-shadow: var(--shadow);
+      margin-bottom: 16px;
+    }
+    h1, h2, h3 {
+      margin: 0 0 10px 0;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+    }
+    h1 { font-size: 24px; }
+    h2 { font-size: 18px; margin-top: 8px; }
+    p { margin: 0 0 8px 0; color: var(--muted); }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+      gap: 14px;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 14px;
+      box-shadow: var(--shadow);
+    }
+    .kv {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 6px 12px;
+      align-items: center;
+      font-size: 14px;
+    }
+    .kv .k { color: var(--muted); }
+    .kv .v { color: var(--text); font-weight: 600; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    th, td {
+      border-bottom: 1px solid var(--line);
+      padding: 8px 6px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th { color: var(--muted); font-weight: 600; }
+    .tag {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      border: 1px solid var(--line);
+    }
+    .ok { color: var(--primary); border-color: rgba(72, 212, 181, 0.45); }
+    .warn { color: var(--secondary); border-color: rgba(246, 196, 83, 0.5); }
+    .risk { color: var(--danger); border-color: rgba(255, 111, 120, 0.45); }
+    .empty {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 20px;
+      text-align: center;
+      color: var(--muted);
+    }
+    @media (max-width: 720px) {
+      .wrap { padding: 14px; }
+      h1 { font-size: 20px; }
+      table { font-size: 12px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <a href="/">首页</a>
+      <a href="/daily/{{ latest_date if latest_date else '20260316' }}">单日复盘</a>
+      <a href="/period?start=20260313&end=20260316&period_type=custom">周期复盘</a>
+      <a href="/compare/matrix?start=20260313&end=20260316">多日矩阵</a>
+    </div>
+    {% block content %}{% endblock %}
+  </div>
+</body>
+</html>

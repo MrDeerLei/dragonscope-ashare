@@ -1,0 +1,170 @@
+import json
+from pathlib import Path
+from typing import Any
+
+import pandas as pd
+from fastapi import FastAPI, Query, Request
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
+
+from app.config import DB_PATH, PROJECT_ROOT
+from app.database import connect_db, init_db
+
+
+TEMPLATES_DIR = PROJECT_ROOT / "app" / "ui" / "templates"
+
+app = FastAPI(title="DragonScope-AShare Dashboard", version="0.5.0-dev")
+templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+
+
+def _query_df(sql: str, params: tuple[Any, ...] = ()) -> pd.DataFrame:
+    with connect_db(DB_PATH) as conn:
+        return pd.read_sql_query(sql, conn, params=params)
+
+
+def _latest_trade_date() -> str | None:
+    df = _query_df("SELECT trade_date FROM daily_market_stats ORDER BY trade_date DESC LIMIT 1")
+    if df.empty:
+        return None
+    return str(df.iloc[0]["trade_date"])
+
+
+@app.get("/", response_class=HTMLResponse)
+def dashboard(request: Request):
+    init_db(DB_PATH)
+    latest = _latest_trade_date()
+    latest_stats = None
+    latest_review = None
+    theme_top = []
+    leader_top = []
+    inflections = []
+    recent_days = []
+    if latest:
+        stats_df = _query_df("SELECT * FROM daily_market_stats WHERE trade_date = ?", (latest,))
+        review_df = _query_df("SELECT * FROM daily_review WHERE trade_date = ?", (latest,))
+        theme_df = _query_df(
+            "SELECT theme_name, theme_rank, theme_stage, limit_up_count FROM daily_theme_stats WHERE trade_date = ? ORDER BY theme_rank LIMIT 5",
+            (latest,),
+        )
+        leader_df = _query_df(
+            "SELECT name, role_type, theme_name, board_count, leader_score FROM daily_leader_stats WHERE trade_date = ? ORDER BY is_market_leader DESC, is_theme_leader DESC, leader_score DESC LIMIT 8",
+            (latest,),
+        )
+        day_df = _query_df(
+            "SELECT * FROM day_compare_cache ORDER BY trade_date DESC LIMIT 5",
+        )
+        recent_df = _query_df(
+            "SELECT trade_date, emotion_score, market_stage, limit_up_non_st, limit_down_non_st FROM daily_market_stats ORDER BY trade_date DESC LIMIT 10"
+        )
+        latest_stats = stats_df.iloc[0].to_dict() if len(stats_df) else None
+        latest_review = review_df.iloc[0].to_dict() if len(review_df) else None
+        theme_top = theme_df.to_dict("records")
+        leader_top = leader_df.to_dict("records")
+        inflections = day_df.to_dict("records")
+        recent_days = recent_df.to_dict("records")
+    return templates.TemplateResponse(
+        request,
+        "index.html",
+        {
+            "latest_date": latest,
+            "latest_stats": latest_stats,
+            "latest_review": latest_review,
+            "theme_top": theme_top,
+            "leader_top": leader_top,
+            "inflections": inflections,
+            "recent_days": recent_days,
+        },
+    )
+
+
+@app.get("/daily/{trade_date}", response_class=HTMLResponse)
+def daily_page(request: Request, trade_date: str):
+    market_df = _query_df("SELECT * FROM daily_market_stats WHERE trade_date = ?", (trade_date,))
+    review_df = _query_df("SELECT * FROM daily_review WHERE trade_date = ?", (trade_date,))
+    theme_df = _query_df(
+        "SELECT * FROM daily_theme_stats WHERE trade_date = ? ORDER BY theme_rank",
+        (trade_date,),
+    )
+    leader_df = _query_df(
+        "SELECT * FROM daily_leader_stats WHERE trade_date = ? ORDER BY is_market_leader DESC, is_theme_leader DESC, leader_score DESC",
+        (trade_date,),
+    )
+    if market_df.empty:
+        return templates.TemplateResponse(request, "empty.html", {"message": f"{trade_date} 没有同步数据"})
+    market_row = market_df.iloc[0].to_dict()
+    review_row = review_df.iloc[0].to_dict() if len(review_df) else {}
+    board_dist = {}
+    if market_row.get("board_dist_json"):
+        board_dist = json.loads(market_row["board_dist_json"])
+    return templates.TemplateResponse(
+        request,
+        "daily.html",
+        {
+            "trade_date": trade_date,
+            "market": market_row,
+            "review": review_row,
+            "themes": theme_df.to_dict("records"),
+            "leaders": leader_df.to_dict("records"),
+            "board_dist": board_dist,
+        },
+    )
+
+
+@app.get("/period", response_class=HTMLResponse)
+def period_page(
+    request: Request,
+    start: str = Query(..., description="YYYYMMDD"),
+    end: str = Query(..., description="YYYYMMDD"),
+    period_type: str = Query("custom"),
+):
+    period_id = f"{period_type}:{start}:{end}"
+    period_df = _query_df("SELECT * FROM period_review WHERE period_id = ?", (period_id,))
+    theme_df = _query_df(
+        "SELECT * FROM period_theme_compare WHERE period_id = ? ORDER BY appear_days DESC, avg_theme_score DESC LIMIT 20",
+        (period_id,),
+    )
+    leader_df = _query_df(
+        "SELECT * FROM period_leader_compare WHERE period_id = ? ORDER BY leader_days DESC, highest_board DESC LIMIT 20",
+        (period_id,),
+    )
+    matrix_df = _query_df(
+        "SELECT * FROM day_compare_cache WHERE trade_date BETWEEN ? AND ? ORDER BY trade_date",
+        (start, end),
+    )
+    if period_df.empty:
+        return templates.TemplateResponse(request, "empty.html", {"message": f"{period_id} 没有周期复盘，请先运行 generate_period_review.py"})
+    period_row = period_df.iloc[0].to_dict()
+    return templates.TemplateResponse(
+        request,
+        "period.html",
+        {
+            "period_id": period_id,
+            "period": period_row,
+            "themes": theme_df.to_dict("records"),
+            "leaders": leader_df.to_dict("records"),
+            "matrix": matrix_df.to_dict("records"),
+        },
+    )
+
+
+@app.get("/compare/matrix", response_class=HTMLResponse)
+def compare_matrix_page(
+    request: Request,
+    start: str = Query(..., description="YYYYMMDD"),
+    end: str = Query(..., description="YYYYMMDD"),
+):
+    matrix_df = _query_df(
+        "SELECT * FROM day_compare_cache WHERE trade_date BETWEEN ? AND ? ORDER BY trade_date",
+        (start, end),
+    )
+    if matrix_df.empty:
+        return templates.TemplateResponse(request, "empty.html", {"message": f"{start}~{end} 没有对比矩阵，请先运行 generate_compare_matrix.py"})
+    return templates.TemplateResponse(
+        request,
+        "compare_matrix.html",
+        {
+            "start": start,
+            "end": end,
+            "matrix": matrix_df.to_dict("records"),
+        },
+    )

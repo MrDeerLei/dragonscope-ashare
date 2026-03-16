@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}{{ start }}-{{ end }} 多日矩阵{% endblock %}
+{% block content %}
+<div class="hero">
+  <h1>多日矩阵对比</h1>
+  <p>区间：{{ start }} ~ {{ end }}</p>
+</div>
+
+<div class="card">
+  <h2>逐日变化矩阵</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>日期</th>
+        <th>情绪变化</th>
+        <th>成交额变化(亿)</th>
+        <th>涨停变化</th>
+        <th>跌停变化</th>
+        <th>主线切换</th>
+        <th>龙头切换</th>
+        <th>拐点评分</th>
+        <th>原因</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for row in matrix %}
+      <tr>
+        <td>{{ row.prev_trade_date }} → {{ row.trade_date }}</td>
+        <td>{{ "%+.2f"|format(row.emotion_delta) }}</td>
+        <td>{{ "%+.2f"|format(row.amount_delta) }}</td>
+        <td>{{ "%+.0f"|format(row.limit_up_delta) }}</td>
+        <td>{{ "%+.0f"|format(row.limit_down_delta) }}</td>
+        <td>{{ "是" if row.main_theme_changed else "否" }}</td>
+        <td>{{ "是" if row.market_leader_changed else "否" }}</td>
+        <td>{{ "%.2f"|format(row.inflection_score) }}</td>
+        <td>{{ row.inflection_reason }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

@@ -200,6 +200,18 @@ python scripts/compare_periods.py \
 python scripts/generate_compare_matrix.py --start 20260313 --end 20260316
 ```
 
+### 9. 启动本地复盘工作台（v0.5-dev）
+
+```bash
+python scripts/run_dashboard.py
+```
+
+打开：
+
+```text
+http://127.0.0.1:8000
+```
+
 ## 文档入口
 
 1. [系统设计稿](./docs/system-design.md)
