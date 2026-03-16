@@ -336,8 +336,17 @@ def build_period_review(period_type: str, daily_stats: pd.DataFrame, theme_stats
     )
     theme_compare = build_period_theme_compare(period_id, theme_stats, leader_stats)
     leader_compare = build_period_leader_compare(period_id, leader_stats)
-
-    markdown = _render_period_markdown(period_type, daily_stats, theme_summary, leader_summary, risk_summary)
+    day_change_df = build_day_change_matrix(daily_stats)
+    period_insights = build_period_insights(daily_stats, theme_summary, leader_summary, day_change_df)
+    markdown = _render_period_markdown(
+        period_type,
+        daily_stats,
+        theme_summary,
+        leader_summary,
+        risk_summary,
+        period_insights,
+        day_change_df,
+    )
     row = {
         "period_id": period_id,
         "start_date": start_date,
@@ -357,7 +366,7 @@ def build_period_review(period_type: str, daily_stats: pd.DataFrame, theme_stats
         "risk_summary": json.dumps(risk_summary.to_dict("records"), ensure_ascii=False),
         "period_markdown": markdown,
     }
-    return pd.DataFrame([row]), theme_compare, leader_compare, markdown
+    return pd.DataFrame([row]), theme_compare, leader_compare, day_change_df, markdown
 
 
 def build_period_theme_compare(period_id: str, theme_stats: pd.DataFrame, leader_stats: pd.DataFrame):
@@ -395,8 +404,10 @@ def build_period_leader_compare(period_id: str, leader_stats: pd.DataFrame):
     if leader_stats.empty:
         return pd.DataFrame()
     grouped = (
-        leader_stats.groupby(["ts_code", "name", "theme_name", "role_type"])
+        leader_stats.groupby(["ts_code", "name"])
         .agg(
+            theme_name=("theme_name", lambda s: s.mode().iloc[0] if not s.mode().empty else s.iloc[0]),
+            role_type=("role_type", lambda s: s.mode().iloc[0] if not s.mode().empty else s.iloc[0]),
             leader_days=("trade_date", "nunique"),
             highest_board=("board_count", "max"),
             avg_amount=("amount", "mean"),
@@ -428,10 +439,100 @@ def build_compare_result(compare_type: str, left_label: str, right_label: str, l
         "premium_delta": _safe_sub(right["premium_avg"], left["premium_avg"]),
         "advance_rate_delta": _safe_sub(right["advance_rate"], left["advance_rate"]),
         "main_theme_changed": int(left["main_theme"] != right["main_theme"]),
-        "leader_changed": int(left["market_stage"] != right["market_stage"]),
+        "leader_changed": int(left["market_leader"] != right["market_leader"]),
         "compare_markdown": markdown,
     }
     return pd.DataFrame([row]), markdown
+
+
+def build_day_change_matrix(daily_stats: pd.DataFrame):
+    if daily_stats.empty:
+        return pd.DataFrame()
+    df = daily_stats.sort_values("trade_date").reset_index(drop=True).copy()
+    rows = []
+    for idx in range(1, len(df)):
+        prev_row = df.iloc[idx - 1]
+        cur_row = df.iloc[idx]
+        reasons = []
+        emotion_delta = cur_row["emotion_score"] - prev_row["emotion_score"]
+        amount_delta = cur_row["amount_total"] - prev_row["amount_total"]
+        limit_up_delta = cur_row["limit_up_non_st"] - prev_row["limit_up_non_st"]
+        limit_down_delta = cur_row["limit_down_non_st"] - prev_row["limit_down_non_st"]
+        premium_delta = _safe_sub(cur_row["premium_avg"], prev_row["premium_avg"])
+        advance_rate_delta = _safe_sub(cur_row["advance_rate"], prev_row["advance_rate"])
+        highest_board_delta = cur_row["highest_board_non_st"] - prev_row["highest_board_non_st"]
+        main_theme_changed = int(cur_row.get("main_theme") != prev_row.get("main_theme"))
+        market_stage_changed = int(cur_row["market_stage"] != prev_row["market_stage"])
+        market_leader_changed = int(cur_row.get("market_leader") != prev_row.get("market_leader"))
+
+        if abs(emotion_delta) >= 15:
+            reasons.append(f"情绪分变化{emotion_delta:+.1f}")
+        if abs(limit_up_delta) >= 10:
+            reasons.append(f"涨停变化{limit_up_delta:+.0f}")
+        if abs(limit_down_delta) >= 5:
+            reasons.append(f"跌停变化{limit_down_delta:+.0f}")
+        if premium_delta is not None and ((prev_row["premium_avg"] or 0) <= 0 < (cur_row["premium_avg"] or 0) or (prev_row["premium_avg"] or 0) >= 0 > (cur_row["premium_avg"] or 0)):
+            reasons.append("涨停溢价正负切换")
+        if main_theme_changed:
+            reasons.append("主线切换")
+        if highest_board_delta <= -2:
+            reasons.append(f"高度断层{highest_board_delta:+.0f}")
+        if market_leader_changed:
+            reasons.append("龙头切换")
+
+        inflection_score = (
+            min(abs(emotion_delta), 20) * 0.8
+            + min(abs(limit_up_delta), 20) * 0.5
+            + min(abs(limit_down_delta), 10) * 0.8
+            + (8 if main_theme_changed else 0)
+            + (6 if market_stage_changed else 0)
+            + (4 if market_leader_changed else 0)
+            + (6 if highest_board_delta <= -2 else 0)
+        )
+        rows.append(
+            {
+                "trade_date": cur_row["trade_date"],
+                "prev_trade_date": prev_row["trade_date"],
+                "emotion_delta": emotion_delta,
+                "amount_delta": amount_delta,
+                "limit_up_delta": limit_up_delta,
+                "limit_down_delta": limit_down_delta,
+                "premium_delta": premium_delta,
+                "advance_rate_delta": advance_rate_delta,
+                "highest_board_delta": highest_board_delta,
+                "main_theme_changed": main_theme_changed,
+                "market_stage_changed": market_stage_changed,
+                "market_leader_changed": market_leader_changed,
+                "inflection_score": round(inflection_score, 2),
+                "inflection_reason": "；".join(reasons) if reasons else "无明显拐点",
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def build_period_insights(daily_stats: pd.DataFrame, theme_summary: pd.DataFrame, leader_summary: pd.DataFrame, day_change_df: pd.DataFrame):
+    strongest_row = daily_stats.sort_values("emotion_score", ascending=False).iloc[0]
+    weakest_row = daily_stats.sort_values("emotion_score", ascending=True).iloc[0]
+    theme_switch_count = 0
+    stage_switch_count = 0
+    if len(daily_stats) > 1:
+        ordered = daily_stats.sort_values("trade_date")
+        theme_switch_count = int((ordered["main_theme"].fillna("").shift(1) != ordered["main_theme"].fillna("")).iloc[1:].sum())
+        stage_switch_count = int((ordered["market_stage"].shift(1) != ordered["market_stage"]).iloc[1:].sum())
+    inflections = day_change_df.sort_values("inflection_score", ascending=False).head(5) if not day_change_df.empty else pd.DataFrame()
+    positive_premium_days = int((daily_stats["premium_avg"].fillna(-999) > 0).sum())
+    strong_advance_days = int((daily_stats["advance_rate"].fillna(-999) >= 25).sum())
+    return {
+        "strongest_day": strongest_row["trade_date"],
+        "weakest_day": weakest_row["trade_date"],
+        "theme_switch_count": theme_switch_count,
+        "stage_switch_count": stage_switch_count,
+        "positive_premium_days": positive_premium_days,
+        "strong_advance_days": strong_advance_days,
+        "top_theme": theme_summary.iloc[0]["theme_name"] if len(theme_summary) else "无",
+        "top_leader": leader_summary.iloc[0]["name"] if len(leader_summary) else "无",
+        "inflections": inflections,
+    }
 
 
 def _render_auto_daily_summary(trade_date, market_stats_row, theme_stats, leader_stats):
@@ -455,43 +556,85 @@ def _render_auto_daily_summary(trade_date, market_stats_row, theme_stats, leader
     )
 
 
-def _render_period_markdown(period_type, daily_stats, theme_summary, leader_summary, risk_summary):
+def _render_period_markdown(period_type, daily_stats, theme_summary, leader_summary, risk_summary, insights, day_change_df):
     start_date = daily_stats["trade_date"].min()
     end_date = daily_stats["trade_date"].max()
     top_theme = theme_summary.iloc[0]["theme_name"] if len(theme_summary) else "无"
     top_leader = leader_summary.iloc[0]["name"] if len(leader_summary) else "无"
     top_risk = risk_summary.iloc[0]["name"] if len(risk_summary) else "无"
-    return "\n".join(
-        [
-            f"# {period_type} 周期复盘",
-            "",
-            f"- 周期范围：`{start_date} ~ {end_date}`",
-            f"- 情绪均值：`{daily_stats['emotion_score'].mean():.2f}`",
-            f"- 情绪最高 / 最低：`{daily_stats['emotion_score'].max():.2f} / {daily_stats['emotion_score'].min():.2f}`",
-            f"- 平均非ST涨停 / 跌停：`{daily_stats['limit_up_non_st'].mean():.2f} / {daily_stats['limit_down_non_st'].mean():.2f}`",
-            f"- 最高非ST连板峰值：`{int(daily_stats['highest_board_non_st'].max())}板`",
-            f"- 周期最强主线：`{top_theme}`",
-            f"- 周期核心龙头：`{top_leader}`",
-            f"- 周期风险锚：`{top_risk}`",
-        ]
-    )
+    lines = [
+        f"# {period_type} 周期复盘",
+        "",
+        "## 周期总览",
+        "",
+        f"- 周期范围：`{start_date} ~ {end_date}`",
+        f"- 情绪均值：`{daily_stats['emotion_score'].mean():.2f}`",
+        f"- 情绪最高 / 最低：`{daily_stats['emotion_score'].max():.2f} / {daily_stats['emotion_score'].min():.2f}`",
+        f"- 平均非ST涨停 / 跌停：`{daily_stats['limit_up_non_st'].mean():.2f} / {daily_stats['limit_down_non_st'].mean():.2f}`",
+        f"- 最高非ST连板峰值：`{int(daily_stats['highest_board_non_st'].max())}板`",
+        f"- 周期最强主线：`{top_theme}`",
+        f"- 周期核心龙头：`{top_leader}`",
+        f"- 周期风险锚：`{top_risk}`",
+        "",
+        "## 阶段总结",
+        "",
+        f"- 最强交易日：`{insights['strongest_day']}`",
+        f"- 最弱交易日：`{insights['weakest_day']}`",
+        f"- 主线切换次数：`{insights['theme_switch_count']}`",
+        f"- 市场阶段切换次数：`{insights['stage_switch_count']}`",
+        f"- 涨停溢价为正的交易日数：`{insights['positive_premium_days']}`",
+        f"- 晋级率较强的交易日数：`{insights['strong_advance_days']}`",
+        "",
+        "## 主线排名",
+        "",
+    ]
+    for _, row in theme_summary.head(5).iterrows():
+        lines.append(
+            f"- `{row['theme_name']}`：出现=`{int(row['appear_days'])}`天，总强度=`{row['total_score']:.2f}`"
+        )
+    lines.extend(["", "## 龙头排名", ""])
+    for _, row in leader_summary.head(5).iterrows():
+        lines.append(
+            f"- `{row['name']}`：领涨=`{int(row['leader_days'])}`天，最高=`{int(row['max_board'])}`板"
+        )
+    lines.extend(["", "## 风险锚", ""])
+    for _, row in risk_summary.head(5).iterrows():
+        lines.append(f"- `{row['name']}`：出现=`{int(row['risk_days'])}`天")
+    lines.extend(["", "## 拐点记录", ""])
+    if day_change_df.empty:
+        lines.append("- 无可比较的多日数据")
+    else:
+        for _, row in day_change_df.sort_values("trade_date").iterrows():
+            lines.append(
+                f"- `{row['prev_trade_date']} -> {row['trade_date']}`：拐点评分=`{row['inflection_score']:.2f}`，原因=`{row['inflection_reason']}`"
+            )
+    return "\n".join(lines)
 
 
 def _render_compare_markdown(compare_type, left_label, right_label, left, right):
-    return "\n".join(
-        [
-            f"# {compare_type} 对比",
-            "",
-            f"- 左侧区间：`{left_label}`",
-            f"- 右侧区间：`{right_label}`",
-            f"- 情绪分变化：`{right['emotion_score'] - left['emotion_score']:+.2f}`",
-            f"- 平均成交额变化：`{right['amount_total'] - left['amount_total']:+.2f}亿`",
-            f"- 平均非ST涨停变化：`{right['limit_up_non_st'] - left['limit_up_non_st']:+.2f}`",
-            f"- 平均非ST跌停变化：`{right['limit_down_non_st'] - left['limit_down_non_st']:+.2f}`",
-            f"- 主线变化：`{left['main_theme']} -> {right['main_theme']}`",
-            f"- 市场阶段变化：`{left['market_stage']} -> {right['market_stage']}`",
-        ]
-    )
+    emotion_delta = right["emotion_score"] - left["emotion_score"]
+    lines = [
+        f"# {compare_type} 对比",
+        "",
+        f"- 左侧区间：`{left_label}`",
+        f"- 右侧区间：`{right_label}`",
+        f"- 情绪分变化：`{emotion_delta:+.2f}`",
+        f"- 平均成交额变化：`{right['amount_total'] - left['amount_total']:+.2f}亿`",
+        f"- 平均非ST涨停变化：`{right['limit_up_non_st'] - left['limit_up_non_st']:+.2f}`",
+        f"- 平均非ST跌停变化：`{right['limit_down_non_st'] - left['limit_down_non_st']:+.2f}`",
+        f"- 涨停溢价变化：`{_fmt_optional_delta(_safe_sub(right['premium_avg'], left['premium_avg']))}`",
+        f"- 晋级率变化：`{_fmt_optional_delta(_safe_sub(right['advance_rate'], left['advance_rate']))}`",
+        f"- 主线变化：`{left['main_theme']} -> {right['main_theme']}`",
+        f"- 龙头变化：`{left['market_leader']} -> {right['market_leader']}`",
+        f"- 市场阶段变化：`{left['market_stage']} -> {right['market_stage']}`",
+        "",
+        "## 对比结论",
+        "",
+        f"- 环境判断：`{_judge_environment_change(emotion_delta)}`",
+        f"- 主线是否切换：`{'是' if left['main_theme'] != right['main_theme'] else '否'}`",
+        f"- 龙头是否切换：`{'是' if left['market_leader'] != right['market_leader'] else '否'}`",
+    ]
+    return "\n".join(lines)
 
 
 def _aggregate_compare_stats(stats_df: pd.DataFrame):
@@ -504,6 +647,7 @@ def _aggregate_compare_stats(stats_df: pd.DataFrame):
         "advance_rate": _safe_mean(stats_df["advance_rate"]),
         "market_stage": stats_df["market_stage"].iloc[-1],
         "main_theme": stats_df["main_theme"].mode().iloc[0] if "main_theme" in stats_df.columns and stats_df["main_theme"].notna().any() else "无",
+        "market_leader": stats_df["market_leader"].mode().iloc[0] if "market_leader" in stats_df.columns and stats_df["market_leader"].notna().any() else "无",
     }
 
 
@@ -536,3 +680,21 @@ def _resolve_role_type(is_market_leader, is_theme_leader, is_capacity_core, is_r
     if board_count >= 2:
         return "前排梯队"
     return "普通"
+
+
+def _fmt_optional_delta(value):
+    if value is None:
+        return "未获取"
+    return f"{value:+.2f}"
+
+
+def _judge_environment_change(emotion_delta):
+    if emotion_delta >= 10:
+        return "明显转强"
+    if emotion_delta <= -10:
+        return "明显转弱"
+    if emotion_delta > 0:
+        return "小幅改善"
+    if emotion_delta < 0:
+        return "小幅走弱"
+    return "基本持平"

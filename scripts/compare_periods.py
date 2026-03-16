@@ -26,7 +26,7 @@ def parse_args():
 def _load_stats(conn, start, end):
     stats = pd.read_sql_query(
         """
-        SELECT m.*, r.main_theme
+        SELECT m.*, r.main_theme, r.market_leader
         FROM daily_market_stats m
         LEFT JOIN daily_review r ON m.trade_date = r.trade_date
         WHERE m.trade_date BETWEEN ? AND ?

@@ -192,4 +192,21 @@ CREATE TABLE IF NOT EXISTS compare_result (
     leader_changed INTEGER,
     compare_markdown TEXT
 );
+
+CREATE TABLE IF NOT EXISTS day_compare_cache (
+    trade_date TEXT PRIMARY KEY,
+    prev_trade_date TEXT,
+    emotion_delta REAL,
+    amount_delta REAL,
+    limit_up_delta REAL,
+    limit_down_delta REAL,
+    premium_delta REAL,
+    advance_rate_delta REAL,
+    highest_board_delta REAL,
+    main_theme_changed INTEGER,
+    market_stage_changed INTEGER,
+    market_leader_changed INTEGER,
+    inflection_score REAL,
+    inflection_reason TEXT
+);
 """

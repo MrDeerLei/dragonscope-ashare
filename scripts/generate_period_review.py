@@ -42,7 +42,7 @@ def main():
         )
         daily_reviews = pd.read_sql_query(
             """
-            SELECT trade_date, main_theme, market_stage
+            SELECT trade_date, main_theme, market_leader
             FROM daily_review
             WHERE trade_date BETWEEN ? AND ?
             ORDER BY trade_date
@@ -71,12 +71,13 @@ def main():
             conn,
             params=(args.start, args.end),
         )
-        period_df, theme_compare_df, leader_compare_df, markdown = build_period_review(
+        period_df, theme_compare_df, leader_compare_df, day_change_df, markdown = build_period_review(
             args.period_type, daily_stats, theme_stats, leader_stats
         )
         replace_by_keys(conn, "period_review", period_df, ["period_id"])
         replace_by_keys(conn, "period_theme_compare", theme_compare_df, ["period_id", "theme_name"])
         replace_by_keys(conn, "period_leader_compare", leader_compare_df, ["period_id", "ts_code"])
+        replace_by_keys(conn, "day_compare_cache", day_change_df, ["trade_date"])
         conn.commit()
 
     output = PERIOD_REVIEWS_DIR / f"{args.start}_{args.end}_{args.period_type}_review.md"

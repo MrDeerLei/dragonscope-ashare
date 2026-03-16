@@ -194,6 +194,12 @@ python scripts/compare_periods.py \
   --compare-type day_vs_day
 ```
 
+### 8. 生成多日对比矩阵与拐点记录
+
+```bash
+python scripts/generate_compare_matrix.py --start 20260313 --end 20260316
+```
+
 ## 文档入口
 
 1. [系统设计稿](./docs/system-design.md)
