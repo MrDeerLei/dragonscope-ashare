@@ -1,85 +1,88 @@
-# Roadmap
+# 项目路线图
 
-## v0.1 Documentation + Demo
+## v0.1 文档 + Demo
 
-Goal:
+目标：
 
-1. Define the product clearly
-2. Ship repository skeleton
-3. Include one working daily review demo
+1. 把项目定位讲清楚
+2. 搭好开源仓库骨架
+3. 放出一个可运行的单日复盘 Demo
 
-Deliverables:
+交付内容：
 
 1. README
-2. System design docs
-3. Open-source launch docs
-4. `scripts/generate_daily_review.py`
+2. 系统设计文档
+3. 详细设计说明
+4. 开源仓库基础文件
+5. `scripts/generate_daily_review.py`
 
-## v0.2 Data Foundation
+## v0.2 数据底座
 
-Goal:
+目标：
 
-1. Add a persistent local database
-2. Store daily normalized market snapshots
-3. Build daily market stats pipeline
+1. 增加本地数据库
+2. 建立单日数据同步能力
+3. 持久化单日市场快照
 
-Deliverables:
+交付内容：
 
-1. SQLite schema
-2. `sync_day` pipeline
-3. Stored daily snapshots
-4. Stored daily market stats
+1. SQLite 表结构
+2. 单日同步脚本
+3. 单日市场统计入库
+4. 单日题材统计入库
 
-## v0.3 Period Review
+## v0.3 周期复盘
 
-Goal:
+目标：
 
-1. Add 5-day / 10-day / 20-day review generation
-2. Aggregate daily results into stage summaries
+1. 支持最近 5 日 / 10 日 / 20 日周期复盘
+2. 输出阶段总结
 
-Deliverables:
+交付内容：
 
-1. Period review engine
-2. Period markdown export
-3. Period leader/theme ranking
+1. 周期复盘引擎
+2. 周期复盘 Markdown 导出
+3. 周期主线与龙头排名
 
-## v0.4 Multi-Day Comparison
+## v0.4 横向对比
 
-Goal:
+目标：
 
-1. Compare multiple days or ranges
-2. Detect inflection points and regime changes
+1. 支持多日横向对比
+2. 支持区间对比
+3. 支持识别拐点日
 
-Deliverables:
+交付内容：
 
-1. Comparison engine
-2. Day-to-day comparison tables
-3. Range-vs-range comparison reports
+1. 对比引擎
+2. 多日对比表
+3. 区间对比报告
 
-## v0.5 Local Web Workbench
+## v0.5 本地工作台
 
-Goal:
+目标：
 
-1. Add a local review dashboard
-2. Support editing and saving conclusions
+1. 增加本地 Web 界面
+2. 支持人工编辑和归档
+3. 提高日常使用效率
 
-Deliverables:
+交付内容：
 
-1. Dashboard page
-2. Daily review page
-3. Period review page
-4. Comparison page
+1. 首页仪表盘
+2. 单日复盘页
+3. 周期复盘页
+4. 横向对比页
 
-## v1.0 Research Platform
+## v1.0 复盘研究平台
 
-Goal:
+目标：
 
-1. Make the project useful as a real review system
-2. Support historical tracking and workflow reuse
+1. 让项目成为可长期使用的复盘系统
+2. 支持历史回查、主题追踪和预案沉淀
 
-Deliverables:
+交付内容：
 
-1. Complete review archive
-2. Search and filtering
-3. Plan generation
-4. Stable release docs
+1. 完整复盘档案库
+2. 搜索和筛选能力
+3. 明日预案模块
+4. 稳定版文档和发布说明

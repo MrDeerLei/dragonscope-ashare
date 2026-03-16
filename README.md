@@ -1,86 +1,107 @@
 # DragonScope-AShare
 
-Chinese name: `龙头复盘系统`
+中文名：`龙头复盘系统`
 
-`DragonScope-AShare` is an open-source review and research system for A-share dragon-head trading.
-It focuses on three core workflows:
+`DragonScope-AShare` 是一个面向 **A 股龙头战法** 的开源复盘与研究系统。  
+它不是通用行情看板，也不是单一脚本工具，而是一套围绕以下场景展开的复盘工作台：
 
-1. Daily review
-2. Period review
-3. Multi-day comparison
+1. 单日复盘
+2. 周期复盘
+3. 多日横向对比
+4. 主线题材追踪
+5. 龙头梯队追踪
+6. 明日预案沉淀
 
-Unlike generic market dashboards, this project is built for traders who care about:
+## 项目定位
 
-1. Market emotion
-2. Main themes
-3. Leader ladders
-4. Capacity cores
-5. Risk anchors
-6. Next-day plans
+很多交易者的复盘是碎片化的：
 
-## Why This Project
+1. 今天看涨停板
+2. 明天看竞价
+3. 周末再凭感觉总结
+4. 过一段时间后很难回看市场到底是怎么演化的
 
-Most review workflows are fragmented:
+这个项目要解决的是：
 
-1. One notebook for daily notes
-2. One spreadsheet for stats
-3. One trading app for charts
-4. No structured history
+> 把零散的龙头复盘，变成一套结构化、可追踪、可对比、可沉淀的研究系统。
 
-`DragonScope-AShare` aims to turn review into a repeatable system:
+## 核心能力
 
-1. Standardize daily review
-2. Aggregate period review
-3. Compare multiple days and detect regime shifts
-4. Build a searchable historical review archive
+### 1. 单日复盘
 
-## Core Features
+自动生成当天的关键短线口径数据：
 
-### Daily Review
+1. 指数与市场宽度
+2. 非 ST 涨停 / 跌停
+3. 非 ST 连板梯队
+4. 主线题材活跃度
+5. 龙头、容量核心、风险锚
+6. 标准化复盘初稿
 
-1. Index and market breadth snapshot
-2. Non-ST limit-up / limit-down statistics
-3. Non-ST board ladder
-4. Main-theme ranking
-5. Core leaders and risk anchors
-6. Auto-generated review draft
+### 2. 周期复盘
 
-### Period Review
+支持对一段时间进行汇总分析：
 
-1. 5-day / 10-day / 20-day review
-2. Emotion score trend
-3. Main-theme persistence
-4. Leader switching
-5. Best patterns and worst mistakes in the period
+1. 最近 5 日
+2. 最近 10 日
+3. 最近 20 日
+4. 月度
+5. 自定义区间
 
-### Multi-Day Comparison
+重点看：
 
-1. Compare recent trading days
-2. Compare two custom ranges
-3. Detect inflection days
-4. Track theme rotation and environment changes
+1. 市场情绪变化
+2. 主线持续性
+3. 龙头切换次数
+4. 接力环境变化
+5. 风格是否发生切换
 
-## Project Status
+### 3. 多日横向对比
 
-Current stage: `v0.1 documentation + demo`
+支持比较多个交易日或两个时间段：
 
-Already included:
+1. 情绪分强弱
+2. 成交额变化
+3. 主线题材变化
+4. 龙头高度变化
+5. 昨日涨停溢价变化
+6. 拐点日识别
 
-1. System design documents
-2. Open-source launch files
-3. A Tushare-based daily review generator demo
+## 为什么值得做
 
-Next stage:
+这个项目最有价值的地方，不是“再做一个股票工具”，而是：
 
-1. Database layer
-2. Daily market stats storage
-3. Period review engine
-4. Comparison engine
+1. 聚焦 A 股龙头战法
+2. 默认采用非 `ST` 的短线实战口径
+3. 不只看单日，还看阶段演化
+4. 强调复盘结果的沉淀和复用
 
-## Repository Structure
+一句话总结：
+
+> 这是一个服务于龙头交易认知建设的开源复盘系统。
+
+## 当前进度
+
+当前阶段：`v0.1 文档 + Demo`
+
+已完成：
+
+1. 系统设计文档
+2. 详细设计说明
+3. 开源仓库基础骨架
+4. 一个基于 `Tushare` 的单日复盘生成脚本 Demo
+
+下一阶段：
+
+1. 本地数据库
+2. 单日数据同步
+3. 周期复盘引擎
+4. 多日横向对比引擎
+
+## 仓库结构
 
 ```text
-dragon-review-system/
+DragonScope-AShare/
 ├── README.md
 ├── LICENSE
 ├── CONTRIBUTING.md
@@ -89,63 +110,57 @@ dragon-review-system/
 ├── requirements.txt
 ├── pyproject.toml
 ├── docs/
-├── app/
 ├── scripts/
+├── app/
 ├── tests/
 ├── data/
 └── reviews/
 ```
 
-## Quick Start
+## 快速开始
 
-### 1. Install dependencies
+### 1. 安装依赖
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 2. Set your Tushare token
+### 2. 配置 Tushare Token
 
 ```bash
-export TUSHARE_TOKEN=your_token
+export TUSHARE_TOKEN=你的token
 ```
 
-### 3. Generate a daily review
+### 3. 生成某日复盘
 
 ```bash
 python scripts/generate_daily_review.py --date 20260316
 ```
 
-## Documentation
+## 文档入口
 
-1. [System Design](./docs/system-design.md)
-2. [System Spec v1](./docs/system-spec-v1.md)
-3. [Roadmap](./ROADMAP.md)
-4. [Project Control](./PROJECT_CONTROL.md)
+1. [系统设计稿](./docs/system-design.md)
+2. [系统详细设计说明](./docs/system-spec-v1.md)
+3. [项目路线图](./ROADMAP.md)
+4. [项目总控文件](./PROJECT_CONTROL.md)
 
-## Name Choice
+## 项目命名说明
 
-Primary project name:
+主项目名：
 
 1. `DragonScope-AShare`
 
-Why this name:
+命名含义：
 
-1. `Dragon` maps clearly to 龙头战法
-2. `Scope` sounds like a professional research and observation system
-3. `AShare` immediately explains the market scope
-4. The combination is specific enough to avoid looking generic
+1. `Dragon`：对应龙头战法
+2. `Scope`：强调观察、研究、复盘系统感
+3. `AShare`：明确聚焦 A 股市场
 
-Backup names:
+## 风险声明
 
-1. `LongTouScope`
-2. `DragonReviewLab`
+本项目仅用于复盘研究、数据分析与交易工作流辅助。  
+不构成任何投资建议。
 
-## Disclaimer
-
-This project is for research and review only.
-It does not constitute investment advice.
-
-## License
+## 许可证
 
 MIT

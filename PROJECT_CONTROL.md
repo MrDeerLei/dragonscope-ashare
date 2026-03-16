@@ -1,46 +1,34 @@
-# Project Control
+# 项目总控文件
 
-This is the master operating file for launching the GitHub open-source project.
+这是 `DragonScope-AShare` 的项目执行总控文件。  
+后续你推进这个开源项目时，可以优先看这里。
 
-Project name:
+项目名：
 
 1. `DragonScope-AShare`
 
-Local path:
+本地目录：
 
-1. `/Users/ray/Myworkspace/龙头复盘系统`
+1. `/Users/ray/Myworkspace/DragonScope-AShare`
 
-Recommended GitHub repository name:
+GitHub 仓库：
 
 1. `dragonscope-ashare`
 
-## Step-by-Step Launch Checklist
+## 一、当前定位
 
-### Step 1. Confirm the project name
+当前版本定位：
 
-Primary:
+1. `v0.1 文档 + Demo`
 
-1. `DragonScope-AShare`
+当前目标：
 
-Alternatives:
+1. 把仓库形象搭好
+2. 把项目定位讲清楚
+3. 放出一个可运行的单日复盘示例
+4. 为下一阶段的数据底座开发做准备
 
-1. `LongTouScope`
-2. `DragonReviewLab`
-
-Current recommendation:
-
-1. Use `DragonScope-AShare`
-
-Reason:
-
-1. Professional
-2. Easy to understand
-3. Specific to A-share dragon-head review
-4. Not generic like `stock-review-system`
-
-### Step 2. Keep the local repo root clean
-
-Files already prepared:
+## 二、当前仓库中已经准备好的内容
 
 1. `README.md`
 2. `LICENSE`
@@ -51,100 +39,117 @@ Files already prepared:
 7. `docs/system-spec-v1.md`
 8. `scripts/generate_daily_review.py`
 
-### Step 3. Create the GitHub repository
+## 三、你接下来要按顺序做的事情
 
-On GitHub:
+### Step 1. 完善 GitHub 首页
 
-1. Click `New repository`
-2. Repository name: `dragonscope-ashare`
-3. Description:
-   `An open-source A-share dragon-head review and research system for daily review, period review, and multi-day comparison.`
-4. Set visibility to `Public`
-5. Do not initialize with README if you want to push this local directory directly
+去仓库首页补这几项：
 
-### Step 4. Initialize local git
+1. Description
+2. Topics
+3. Release
 
-Run:
+推荐 Description：
 
-```bash
-cd "/Users/ray/Myworkspace/龙头复盘系统"
-git init
-git checkout -b main
-git add .
-git commit -m "chore: initialize DragonScope-AShare open-source project"
+```text
+An open-source A-share dragon-head review and research system for daily review, period review, and multi-day comparison.
 ```
 
-### Step 5. Connect the GitHub remote
+推荐 Topics：
 
-Run:
-
-```bash
-git remote add origin git@github.com:<your-github-username>/dragonscope-ashare.git
-git push -u origin main
+```text
+a-share
+quant
+trading-system
+market-review
+stock-research
+python
+tushare
 ```
 
-### Step 6. Improve the GitHub repository page
+### Step 2. 用 VS Code 管理本地项目
 
-After pushing:
+建议工作方式：
 
-1. Add repository topics:
-   `a-share`, `quant`, `trading`, `review-system`, `stock-analysis`, `china-market`
-2. Add a short project website or documentation link later
-3. Pin the repository on your GitHub profile
+1. GitHub 页面负责仓库展示、Issues、Release、路线管理
+2. VS Code 负责改文档、改代码、提交版本
 
-### Step 7. First public release content
+### Step 3. 做第一批 Issues
 
-Your first public message should say:
+建议先建这 5 个：
 
-1. What the project is
-2. Why it exists
-3. What is already usable
-4. What the roadmap is
+1. `v0.2: 建立本地数据库结构`
+2. `v0.2: 增加单日数据同步流程`
+3. `v0.2: 入库单日市场统计`
+4. `v0.3: 建立周期复盘引擎`
+5. `v0.4: 建立多日横向对比引擎`
 
-### Step 8. First release target
+### Step 4. 做第一个 Release
 
-Target tag:
+建议版本号：
 
 1. `v0.1.0`
 
-Release title:
+建议标题：
 
-1. `v0.1.0 - documentation and daily review demo`
+1. `v0.1.0 - 文档版与单日复盘 Demo`
 
-### Step 9. Immediate next coding milestone
+### Step 5. 进入下一阶段开发
 
-Build next:
+下一阶段重点不是继续润色文档，而是开始做：
 
-1. Local database schema
-2. Daily data sync pipeline
-3. Stored daily market stats
-4. Period review generator
-5. Multi-day comparison generator
+1. 数据库
+2. 单日同步
+3. 周期复盘
+4. 横向对比
 
-## Suggested Public Description
+## 四、标准提交演练
 
-Short GitHub description:
+以后每次改完，都尽量按下面方式提交：
 
-`Open-source A-share dragon-head review and research system for daily review, period review, and multi-day comparison.`
+### 文档类提交
 
-Longer intro:
+```bash
+git add .
+git commit -m "docs: 中文化 README 和项目基础文档"
+git push
+```
 
-`DragonScope-AShare is an open-source review workbench for A-share dragon-head trading. It standardizes daily review, tracks theme and leader evolution, and supports period review plus multi-day comparison.`
+### 功能类提交
 
-## Suggested First GitHub Topics
+```bash
+git add .
+git commit -m "feat: 新增周期复盘引擎"
+git push
+```
 
-1. `a-share`
-2. `quant`
-3. `trading-system`
-4. `market-review`
-5. `stock-research`
-6. `python`
-7. `tushare`
+### 修复类提交
 
-## Success Criteria For The First Month
+```bash
+git add .
+git commit -m "fix: 修正非ST连板梯队统计口径"
+git push
+```
 
-1. Repository is public
-2. README is clear
-3. Demo script can run
-4. At least one example review is generated
-5. v0.2 tasks are broken into GitHub issues
+## 五、第一阶段成功标准
+
+第一阶段是否成功，看这几点：
+
+1. 仓库公开
+2. README 清楚
+3. Demo 能跑
+4. 有第一批 Issues
+5. 有第一个 Release
+
+## 六、当前建议
+
+当前最优先事项：
+
+1. 中文化仓库文档
+2. 做一次标准提交
+3. 建第一批 Issues
+4. 发 `v0.1.0`
+
+一句话总结：
+
+> 现在先把仓库做成“像一个开源项目”，再进入功能开发阶段。

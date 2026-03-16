@@ -1,47 +1,51 @@
-# Contributing
+# 贡献指南
 
-Thanks for considering contributing to `DragonScope-AShare`.
+感谢你愿意参与 `DragonScope-AShare`。
 
-## What We Need First
+这个项目目前仍处于早期阶段，最需要的是：
 
-Priority areas:
+1. 让数据口径更稳定
+2. 让复盘结构更清晰
+3. 让系统逐步从 Demo 走向可长期使用
 
-1. Data collection cleanup
-2. Non-ST short-term review metrics
-3. Theme aggregation and ranking
-4. Period review engine
-5. Multi-day comparison engine
-6. Documentation polish
+## 当前优先欢迎的贡献方向
 
-## Contribution Workflow
+1. 单日市场统计的完善
+2. 非 ST 连板梯队口径优化
+3. 主线题材聚合与排序
+4. 周期复盘引擎
+5. 多日横向对比引擎
+6. 文档和示例输出优化
 
-1. Fork the repository
-2. Create a branch with prefix `codex/` or your own feature branch
-3. Make a focused change
-4. Add or update docs when needed
-5. Open a pull request with a clear summary
+## 推荐贡献流程
 
-## Pull Request Guidelines
+1. Fork 仓库
+2. 新建功能分支
+3. 做一项聚焦的小改动
+4. 同步更新必要文档
+5. 提交 Pull Request
 
-Please include:
+## Pull Request 建议内容
 
-1. What problem this PR solves
-2. What files changed
-3. How it was tested
-4. Any tradeoffs or open questions
+请尽量写清楚：
 
-## Coding Guidelines
+1. 这个 PR 解决了什么问题
+2. 改了哪些文件
+3. 如何验证
+4. 有没有口径变化或潜在影响
 
-1. Prefer small modules over one large script
-2. Keep market metric definitions explicit
-3. Use non-ST as the default short-term review basis where applicable
-4. Avoid hidden magic numbers
-5. Keep docs and metric definitions in sync
+## 代码与文档原则
 
-## Good First Contributions
+1. 指标口径要显式
+2. 涨停、跌停、连板等短线指标默认优先使用非 `ST` 口径
+3. 避免把复杂逻辑都塞进一个脚本
+4. 文档和实现要保持一致
+5. 优先做能复用的模块，而不是一次性代码
 
-1. Add a new metric to daily market stats
-2. Improve README clarity
-3. Add tests for board ladder calculation
-4. Add period comparison summaries
-5. Add export support for markdown or JSON
+## 适合新贡献者的任务
+
+1. 为单日复盘增加新的市场指标
+2. 为 README 增加示例展示
+3. 为连板梯队计算增加测试
+4. 增加周期复盘汇总项
+5. 增加对比结果导出能力
