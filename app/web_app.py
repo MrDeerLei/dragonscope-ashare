@@ -298,3 +298,60 @@ def compare_matrix_page(
             "matrix": matrix_df.to_dict("records"),
         },
     )
+
+
+@app.get("/history", response_class=HTMLResponse)
+def history_page(
+    request: Request,
+    start: str | None = Query(None, description="YYYYMMDD"),
+    end: str | None = Query(None, description="YYYYMMDD"),
+    theme: str | None = Query(None, description="主线关键字"),
+    leader: str | None = Query(None, description="龙头关键字"),
+    status: str = Query("all", description="all/active/archived"),
+):
+    latest = _latest_trade_date()
+    sql = """
+    SELECT
+        m.trade_date,
+        m.market_stage,
+        m.emotion_score,
+        m.limit_up_non_st,
+        m.limit_down_non_st,
+        COALESCE(r.main_theme, '') AS main_theme,
+        COALESCE(r.market_leader, '') AS market_leader,
+        COALESCE(r.review_status, 'active') AS review_status
+    FROM daily_market_stats m
+    LEFT JOIN daily_review r ON m.trade_date = r.trade_date
+    WHERE 1 = 1
+    """
+    params: list[Any] = []
+    if start:
+        sql += " AND m.trade_date >= ?"
+        params.append(start)
+    if end:
+        sql += " AND m.trade_date <= ?"
+        params.append(end)
+    if theme:
+        sql += " AND COALESCE(r.main_theme, '') LIKE ?"
+        params.append(f"%{theme.strip()}%")
+    if leader:
+        sql += " AND COALESCE(r.market_leader, '') LIKE ?"
+        params.append(f"%{leader.strip()}%")
+    if status in {"active", "archived"}:
+        sql += " AND COALESCE(r.review_status, 'active') = ?"
+        params.append(status)
+    sql += " ORDER BY m.trade_date DESC LIMIT 300"
+    rows = _query_df(sql, tuple(params))
+    return templates.TemplateResponse(
+        request,
+        "history.html",
+        {
+            "latest_date": latest,
+            "rows": rows.to_dict("records"),
+            "q_start": start or "",
+            "q_end": end or "",
+            "q_theme": theme or "",
+            "q_leader": leader or "",
+            "q_status": status,
+        },
+    )
