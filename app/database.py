@@ -9,6 +9,9 @@ from app.schema import SCHEMA_SQL
 
 
 MIGRATIONS = {
+    "daily_stock_snapshot": {
+        "theme_source": "ALTER TABLE daily_stock_snapshot ADD COLUMN theme_source TEXT",
+    },
     "daily_theme_stats": {
         "theme_stage": "ALTER TABLE daily_theme_stats ADD COLUMN theme_stage TEXT",
     },

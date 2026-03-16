@@ -57,6 +57,7 @@ CREATE TABLE IF NOT EXISTS daily_stock_snapshot (
     is_limit_down_non_st INTEGER,
     board_count INTEGER,
     theme_name TEXT,
+    theme_source TEXT,
     leader_score REAL,
     role_type TEXT,
     PRIMARY KEY (trade_date, ts_code)

@@ -22,6 +22,7 @@ def normalize_market_day(df: pd.DataFrame):
     result["is_limit_down_non_st"] = result["is_limit_down"] & (~result["is_st"])
     result["amount_yi"] = result["amount"] / 100000.0
     result["theme_name"] = result["industry"].fillna("未分类")
+    result["theme_source"] = "industry"
     return result
 
 
@@ -119,6 +120,7 @@ def build_daily_stock_snapshot(current_day: pd.DataFrame, board_counts: dict[str
             "is_limit_down_non_st",
             "board_count",
             "theme_name",
+            "theme_source",
             "leader_score",
             "role_type",
         ]

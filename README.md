@@ -154,6 +154,31 @@ export TUSHARE_TOKEN=你的token
 python scripts/sync_day.py --date 20260316
 ```
 
+### 5.1 可选：自定义主线题材映射
+
+项目内置了一份示例映射：
+
+```text
+data/theme_rules.example.json
+```
+
+如果你想按自己的龙头复盘口径定义主线题材，可以复制一份本地规则：
+
+```bash
+cp data/theme_rules.example.json data/theme_rules.json
+```
+
+然后修改：
+
+1. `industry_aliases`
+2. `stock_themes`
+3. `keyword_themes`
+
+注意：
+
+1. `data/theme_rules.json` 默认不会进入 Git 版本控制
+2. 这样适合保留你自己的主线判断口径
+
 ### 6. 生成周期复盘
 
 ```bash

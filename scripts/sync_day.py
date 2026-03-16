@@ -21,6 +21,7 @@ from app.review_metrics import (
     compute_board_ladder,
     normalize_market_day,
 )
+from app.theme_resolver import apply_theme_mapping, load_theme_rules
 from app.tushare_data import fetch_indices, fetch_market_day, fetch_stock_basic, get_pro, get_trade_dates
 
 
@@ -40,9 +41,11 @@ def main():
         raise ValueError("Cannot compute previous trade date for the selected day.")
 
     basic = fetch_stock_basic(pro)
+    theme_rules = load_theme_rules()
     day_frames = {}
     for trade_date in trade_dates:
-        day_frames[trade_date] = normalize_market_day(fetch_market_day(pro, trade_date, basic))
+        normalized = normalize_market_day(fetch_market_day(pro, trade_date, basic))
+        day_frames[trade_date] = apply_theme_mapping(normalized, theme_rules)
 
     current_day = day_frames[args.date]
     prev_day = day_frames[prev_trade_date]
@@ -67,6 +70,17 @@ def main():
     )
 
     with connect_db(DB_PATH) as conn:
+        for table_name in [
+            "trade_dates",
+            "raw_index_daily",
+            "raw_stock_daily",
+            "daily_stock_snapshot",
+            "daily_market_stats",
+            "daily_theme_stats",
+            "daily_leader_stats",
+            "daily_review",
+        ]:
+            conn.execute(f"DELETE FROM {table_name} WHERE trade_date = ?", (args.date,))
         replace_by_keys(conn, "trade_dates", trade_dates_df, ["trade_date"])
         replace_by_keys(conn, "stock_basic_info", basic, ["ts_code"])
         replace_by_keys(conn, "raw_index_daily", raw_index_daily, ["trade_date", "ts_code"])
