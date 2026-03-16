@@ -8,6 +8,16 @@ from app.config import DB_PATH, ensure_directories
 from app.schema import SCHEMA_SQL
 
 
+MIGRATIONS = {
+    "daily_theme_stats": {
+        "theme_stage": "ALTER TABLE daily_theme_stats ADD COLUMN theme_stage TEXT",
+    },
+    "daily_leader_stats": {
+        "role_type": "ALTER TABLE daily_leader_stats ADD COLUMN role_type TEXT",
+    },
+}
+
+
 def connect_db(db_path: Path = DB_PATH) -> sqlite3.Connection:
     ensure_directories()
     conn = sqlite3.connect(db_path)
@@ -19,6 +29,7 @@ def init_db(db_path: Path = DB_PATH) -> Path:
     conn = connect_db(db_path)
     try:
         conn.executescript(SCHEMA_SQL)
+        _run_migrations(conn)
         conn.commit()
     finally:
         conn.close()
@@ -54,3 +65,16 @@ def replace_by_keys(
         seen.add(key)
         conn.execute(f"DELETE FROM {table_name} WHERE {placeholders}", key)
     df.to_sql(table_name, conn, if_exists="append", index=False)
+
+
+def _run_migrations(conn: sqlite3.Connection):
+    for table_name, migrations in MIGRATIONS.items():
+        existing = _get_columns(conn, table_name)
+        for column_name, sql in migrations.items():
+            if column_name not in existing:
+                conn.execute(sql)
+
+
+def _get_columns(conn: sqlite3.Connection, table_name: str) -> set[str]:
+    rows = conn.execute(f"PRAGMA table_info({table_name})").fetchall()
+    return {row["name"] for row in rows}

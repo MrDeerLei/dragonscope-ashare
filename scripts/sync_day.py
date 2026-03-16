@@ -12,6 +12,7 @@ if str(ROOT) not in sys.path:
 from app.config import DB_PATH
 from app.database import connect_db, init_db, replace_by_keys
 from app.review_metrics import (
+    apply_roles_to_snapshot,
     build_daily_market_stats,
     build_daily_review_row,
     build_daily_stock_snapshot,
@@ -52,6 +53,7 @@ def main():
     market_stats = build_daily_market_stats(args.date, indices, current_day, prev_day, board_counts)
     theme_stats = build_theme_stats(args.date, snapshot)
     leader_stats = build_leader_stats(args.date, snapshot, theme_stats)
+    snapshot = apply_roles_to_snapshot(snapshot, leader_stats)
     daily_review = build_daily_review_row(args.date, market_stats, theme_stats, leader_stats)
 
     raw_stock_daily = current_day[

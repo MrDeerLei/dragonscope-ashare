@@ -204,6 +204,7 @@ def build_theme_stats(trade_date: str, snapshot: pd.DataFrame):
                 "core_stock": core_stock,
                 "capacity_stock": capacity_stock,
                 "theme_score": round(theme_score, 2),
+                "theme_stage": "观察",
             }
         )
     df = pd.DataFrame(rows)
@@ -211,6 +212,9 @@ def build_theme_stats(trade_date: str, snapshot: pd.DataFrame):
         return df
     df = df.sort_values(["theme_score", "limit_up_count", "theme_amount"], ascending=[False, False, False]).reset_index(drop=True)
     df["theme_rank"] = df.index + 1
+    df.loc[df["theme_rank"] == 1, "theme_stage"] = "主线"
+    df.loc[df["theme_rank"] == 2, "theme_stage"] = "次主线"
+    df.loc[df["theme_rank"] >= 3, "theme_stage"] = "轮动"
     return df
 
 
@@ -250,9 +254,25 @@ def build_leader_stats(trade_date: str, snapshot: pd.DataFrame, theme_stats: pd.
                 "is_capacity_core": is_capacity_core,
                 "is_risk_anchor": is_risk_anchor,
                 "leader_score": float(row["leader_score"]),
+                "role_type": _resolve_role_type(
+                    is_market_leader=is_market_leader,
+                    is_theme_leader=is_theme_leader,
+                    is_capacity_core=is_capacity_core,
+                    is_risk_anchor=is_risk_anchor,
+                    board_count=int(row["board_count"]),
+                ),
             }
         )
     return pd.DataFrame(rows)
+
+
+def apply_roles_to_snapshot(snapshot: pd.DataFrame, leader_stats: pd.DataFrame):
+    if snapshot.empty or leader_stats.empty:
+        return snapshot
+    role_map = leader_stats.set_index("ts_code")["role_type"].to_dict()
+    updated = snapshot.copy()
+    updated["role_type"] = updated["ts_code"].map(role_map).fillna(updated["role_type"])
+    return updated
 
 
 def build_daily_review_row(trade_date: str, market_stats: pd.DataFrame, theme_stats: pd.DataFrame, leader_stats: pd.DataFrame):
@@ -312,6 +332,8 @@ def build_period_review(period_type: str, daily_stats: pd.DataFrame, theme_stats
         .head(5)
         .reset_index()
     )
+    theme_compare = build_period_theme_compare(period_id, theme_stats, leader_stats)
+    leader_compare = build_period_leader_compare(period_id, leader_stats)
 
     markdown = _render_period_markdown(period_type, daily_stats, theme_summary, leader_summary, risk_summary)
     row = {
@@ -333,7 +355,56 @@ def build_period_review(period_type: str, daily_stats: pd.DataFrame, theme_stats
         "risk_summary": json.dumps(risk_summary.to_dict("records"), ensure_ascii=False),
         "period_markdown": markdown,
     }
-    return pd.DataFrame([row]), markdown
+    return pd.DataFrame([row]), theme_compare, leader_compare, markdown
+
+
+def build_period_theme_compare(period_id: str, theme_stats: pd.DataFrame, leader_stats: pd.DataFrame):
+    if theme_stats.empty:
+        return pd.DataFrame()
+    grouped = (
+        theme_stats.groupby("theme_name")
+        .agg(
+            appear_days=("trade_date", "nunique"),
+            limit_up_total=("limit_up_count", "sum"),
+            board_total=("board_count", "sum"),
+            avg_theme_score=("theme_score", "mean"),
+        )
+        .reset_index()
+    )
+    leader_map = (
+        leader_stats[leader_stats["is_theme_leader"] == 1]
+        .groupby("theme_name")
+        .agg(best_leader=("name", lambda s: s.mode().iloc[0] if not s.mode().empty else s.iloc[0]))
+        .reset_index()
+    )
+    stage_map = (
+        theme_stats.sort_values(["theme_rank", "trade_date"])
+        .groupby("theme_name")
+        .agg(theme_stage=("theme_stage", lambda s: s.mode().iloc[0] if not s.mode().empty else s.iloc[0]))
+        .reset_index()
+    )
+    result = grouped.merge(leader_map, on="theme_name", how="left").merge(stage_map, on="theme_name", how="left")
+    result.insert(0, "period_id", period_id)
+    result = result.sort_values(["appear_days", "limit_up_total", "avg_theme_score"], ascending=[False, False, False])
+    return result
+
+
+def build_period_leader_compare(period_id: str, leader_stats: pd.DataFrame):
+    if leader_stats.empty:
+        return pd.DataFrame()
+    grouped = (
+        leader_stats.groupby(["ts_code", "name", "theme_name", "role_type"])
+        .agg(
+            leader_days=("trade_date", "nunique"),
+            highest_board=("board_count", "max"),
+            avg_amount=("amount", "mean"),
+            avg_leader_score=("leader_score", "mean"),
+        )
+        .reset_index()
+    )
+    grouped.insert(0, "period_id", period_id)
+    grouped = grouped.sort_values(["leader_days", "highest_board", "avg_leader_score"], ascending=[False, False, False])
+    return grouped
 
 
 def build_compare_result(compare_type: str, left_label: str, right_label: str, left_stats: pd.DataFrame, right_stats: pd.DataFrame):
@@ -364,6 +435,8 @@ def build_compare_result(compare_type: str, left_label: str, right_label: str, l
 def _render_auto_daily_summary(trade_date, market_stats_row, theme_stats, leader_stats):
     top_themes = "、".join(theme_stats["theme_name"].head(3).tolist()) if len(theme_stats) else "无明确主线"
     market_leaders = "、".join(leader_stats[leader_stats["is_market_leader"] == 1]["name"].head(3).tolist()) or "空缺"
+    top_capacity = "、".join(leader_stats[leader_stats["is_capacity_core"] == 1]["name"].head(3).tolist()) or "无"
+    risk_anchor = "、".join(leader_stats[leader_stats["is_risk_anchor"] == 1]["name"].head(3).tolist()) or "无"
     return "\n".join(
         [
             f"# {trade_date} 自动复盘摘要",
@@ -374,6 +447,8 @@ def _render_auto_daily_summary(trade_date, market_stats_row, theme_stats, leader
             f"- 非ST最高连板：`{market_stats_row['highest_board_non_st']}板`",
             f"- 主线候选：`{top_themes}`",
             f"- 市场高标：`{market_leaders}`",
+            f"- 容量核心：`{top_capacity}`",
+            f"- 风险锚：`{risk_anchor}`",
         ]
     )
 
@@ -445,3 +520,17 @@ def _get_idx_pct(idx_map, name):
     if name not in idx_map:
         return None
     return idx_map[name].get("pct_chg")
+
+
+def _resolve_role_type(is_market_leader, is_theme_leader, is_capacity_core, is_risk_anchor, board_count):
+    if is_risk_anchor:
+        return "风险锚"
+    if is_market_leader:
+        return "市场龙头"
+    if is_theme_leader:
+        return "题材龙头"
+    if is_capacity_core:
+        return "容量核心"
+    if board_count >= 2:
+        return "前排梯队"
+    return "普通"

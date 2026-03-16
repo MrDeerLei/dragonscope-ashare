@@ -71,8 +71,12 @@ def main():
             conn,
             params=(args.start, args.end),
         )
-        period_df, markdown = build_period_review(args.period_type, daily_stats, theme_stats, leader_stats)
+        period_df, theme_compare_df, leader_compare_df, markdown = build_period_review(
+            args.period_type, daily_stats, theme_stats, leader_stats
+        )
         replace_by_keys(conn, "period_review", period_df, ["period_id"])
+        replace_by_keys(conn, "period_theme_compare", theme_compare_df, ["period_id", "theme_name"])
+        replace_by_keys(conn, "period_leader_compare", leader_compare_df, ["period_id", "ts_code"])
         conn.commit()
 
     output = PERIOD_REVIEWS_DIR / f"{args.start}_{args.end}_{args.period_type}_review.md"

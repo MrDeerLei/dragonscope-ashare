@@ -151,6 +151,31 @@ CREATE TABLE IF NOT EXISTS period_review (
     period_markdown TEXT
 );
 
+CREATE TABLE IF NOT EXISTS period_theme_compare (
+    period_id TEXT NOT NULL,
+    theme_name TEXT NOT NULL,
+    appear_days INTEGER,
+    limit_up_total INTEGER,
+    board_total INTEGER,
+    avg_theme_score REAL,
+    best_leader TEXT,
+    theme_stage TEXT,
+    PRIMARY KEY (period_id, theme_name)
+);
+
+CREATE TABLE IF NOT EXISTS period_leader_compare (
+    period_id TEXT NOT NULL,
+    ts_code TEXT NOT NULL,
+    name TEXT,
+    theme_name TEXT,
+    leader_days INTEGER,
+    highest_board INTEGER,
+    avg_amount REAL,
+    avg_leader_score REAL,
+    role_type TEXT,
+    PRIMARY KEY (period_id, ts_code)
+);
+
 CREATE TABLE IF NOT EXISTS compare_result (
     compare_id TEXT PRIMARY KEY,
     compare_type TEXT,
