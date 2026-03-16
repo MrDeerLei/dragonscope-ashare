@@ -3,7 +3,8 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
-from fastapi import FastAPI, Query, Request
+from fastapi import FastAPI, Form, Query, Request
+from fastapi.responses import RedirectResponse
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
@@ -27,6 +28,76 @@ def _latest_trade_date() -> str | None:
     if df.empty:
         return None
     return str(df.iloc[0]["trade_date"])
+
+
+def _safe_text(value: Any) -> str:
+    if value is None:
+        return ""
+    return str(value).strip()
+
+
+def _upsert_daily_review(
+    trade_date: str,
+    main_theme: str,
+    secondary_theme: str,
+    market_leader: str,
+    capacity_core: str,
+    risk_anchor: str,
+    best_setup: str,
+    bad_setup: str,
+    tomorrow_plan: str,
+    position_plan: str,
+    review_status: str,
+):
+    main_theme = _safe_text(main_theme)
+    secondary_theme = _safe_text(secondary_theme)
+    market_leader = _safe_text(market_leader)
+    capacity_core = _safe_text(capacity_core)
+    risk_anchor = _safe_text(risk_anchor)
+    best_setup = _safe_text(best_setup)
+    bad_setup = _safe_text(bad_setup)
+    tomorrow_plan = _safe_text(tomorrow_plan)
+    position_plan = _safe_text(position_plan)
+    review_status = _safe_text(review_status) or "active"
+    with connect_db(DB_PATH) as conn:
+        conn.execute(
+            """
+            INSERT INTO daily_review (
+                trade_date, market_stage, main_theme, secondary_theme, market_leader,
+                capacity_core, risk_anchor, best_setup, bad_setup, tomorrow_plan, position_plan, review_status
+            )
+            VALUES (
+                ?, COALESCE((SELECT market_stage FROM daily_market_stats WHERE trade_date = ?), ''),
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+            )
+            ON CONFLICT(trade_date) DO UPDATE SET
+                main_theme = excluded.main_theme,
+                secondary_theme = excluded.secondary_theme,
+                market_leader = excluded.market_leader,
+                capacity_core = excluded.capacity_core,
+                risk_anchor = excluded.risk_anchor,
+                best_setup = excluded.best_setup,
+                bad_setup = excluded.bad_setup,
+                tomorrow_plan = excluded.tomorrow_plan,
+                position_plan = excluded.position_plan,
+                review_status = excluded.review_status
+            """,
+            (
+                trade_date,
+                trade_date,
+                main_theme,
+                secondary_theme,
+                market_leader,
+                capacity_core,
+                risk_anchor,
+                best_setup,
+                bad_setup,
+                tomorrow_plan,
+                position_plan,
+                review_status,
+            ),
+        )
+        conn.commit()
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -108,6 +179,65 @@ def daily_page(request: Request, trade_date: str):
             "board_dist": board_dist,
         },
     )
+
+
+@app.post("/daily/{trade_date}/edit")
+def daily_edit(
+    trade_date: str,
+    main_theme: str = Form(""),
+    secondary_theme: str = Form(""),
+    market_leader: str = Form(""),
+    capacity_core: str = Form(""),
+    risk_anchor: str = Form(""),
+    best_setup: str = Form(""),
+    bad_setup: str = Form(""),
+    tomorrow_plan: str = Form(""),
+    position_plan: str = Form(""),
+):
+    _upsert_daily_review(
+        trade_date=trade_date,
+        main_theme=main_theme,
+        secondary_theme=secondary_theme,
+        market_leader=market_leader,
+        capacity_core=capacity_core,
+        risk_anchor=risk_anchor,
+        best_setup=best_setup,
+        bad_setup=bad_setup,
+        tomorrow_plan=tomorrow_plan,
+        position_plan=position_plan,
+        review_status="active",
+    )
+    return RedirectResponse(url=f"/daily/{trade_date}", status_code=303)
+
+
+@app.post("/daily/{trade_date}/archive")
+def daily_archive(trade_date: str):
+    with connect_db(DB_PATH) as conn:
+        conn.execute(
+            """
+            INSERT INTO daily_review (trade_date, market_stage, review_status)
+            VALUES (?, COALESCE((SELECT market_stage FROM daily_market_stats WHERE trade_date = ?), ''), 'archived')
+            ON CONFLICT(trade_date) DO UPDATE SET review_status = 'archived'
+            """,
+            (trade_date, trade_date),
+        )
+        conn.commit()
+    return RedirectResponse(url=f"/daily/{trade_date}", status_code=303)
+
+
+@app.post("/daily/{trade_date}/unarchive")
+def daily_unarchive(trade_date: str):
+    with connect_db(DB_PATH) as conn:
+        conn.execute(
+            """
+            INSERT INTO daily_review (trade_date, market_stage, review_status)
+            VALUES (?, COALESCE((SELECT market_stage FROM daily_market_stats WHERE trade_date = ?), ''), 'active')
+            ON CONFLICT(trade_date) DO UPDATE SET review_status = 'active'
+            """,
+            (trade_date, trade_date),
+        )
+        conn.commit()
+    return RedirectResponse(url=f"/daily/{trade_date}", status_code=303)
 
 
 @app.get("/period", response_class=HTMLResponse)

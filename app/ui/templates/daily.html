@@ -4,6 +4,13 @@
 <div class="hero">
   <h1>{{ trade_date }} 单日复盘</h1>
   <p>主线：{{ review.main_theme if review else "-" }} | 次主线：{{ review.secondary_theme if review else "-" }}</p>
+  <p>归档状态：
+    {% if review.review_status == "archived" %}
+      <span class="tag warn">已归档</span>
+    {% else %}
+      <span class="tag ok">活跃</span>
+    {% endif %}
+  </p>
 </div>
 
 <div class="grid">
@@ -87,5 +94,59 @@
     {% endfor %}
     </tbody>
   </table>
+</div>
+
+<div class="card" style="margin-top:14px;">
+  <h2>人工编辑</h2>
+  <p>可以在这里覆盖自动结论，保存后会写入数据库 `daily_review`。</p>
+  <form method="post" action="/daily/{{ trade_date }}/edit">
+    <div class="grid">
+      <div>
+        <label>主线题材</label>
+        <input name="main_theme" value="{{ review.main_theme if review else '' }}" style="width:100%;margin-top:6px;padding:8px;border-radius:8px;border:1px solid #3a455d;background:#111827;color:#f2f6ff;">
+      </div>
+      <div>
+        <label>次主线</label>
+        <input name="secondary_theme" value="{{ review.secondary_theme if review else '' }}" style="width:100%;margin-top:6px;padding:8px;border-radius:8px;border:1px solid #3a455d;background:#111827;color:#f2f6ff;">
+      </div>
+      <div>
+        <label>市场龙头</label>
+        <input name="market_leader" value="{{ review.market_leader if review else '' }}" style="width:100%;margin-top:6px;padding:8px;border-radius:8px;border:1px solid #3a455d;background:#111827;color:#f2f6ff;">
+      </div>
+      <div>
+        <label>容量核心</label>
+        <input name="capacity_core" value="{{ review.capacity_core if review else '' }}" style="width:100%;margin-top:6px;padding:8px;border-radius:8px;border:1px solid #3a455d;background:#111827;color:#f2f6ff;">
+      </div>
+      <div>
+        <label>风险锚</label>
+        <input name="risk_anchor" value="{{ review.risk_anchor if review else '' }}" style="width:100%;margin-top:6px;padding:8px;border-radius:8px;border:1px solid #3a455d;background:#111827;color:#f2f6ff;">
+      </div>
+      <div>
+        <label>最佳形态</label>
+        <input name="best_setup" value="{{ review.best_setup if review else '' }}" style="width:100%;margin-top:6px;padding:8px;border-radius:8px;border:1px solid #3a455d;background:#111827;color:#f2f6ff;">
+      </div>
+    </div>
+    <div style="margin-top:12px;">
+      <label>规避形态</label>
+      <textarea name="bad_setup" rows="2" style="width:100%;margin-top:6px;padding:8px;border-radius:8px;border:1px solid #3a455d;background:#111827;color:#f2f6ff;">{{ review.bad_setup if review else '' }}</textarea>
+    </div>
+    <div style="margin-top:12px;">
+      <label>明日计划</label>
+      <textarea name="tomorrow_plan" rows="3" style="width:100%;margin-top:6px;padding:8px;border-radius:8px;border:1px solid #3a455d;background:#111827;color:#f2f6ff;">{{ review.tomorrow_plan if review else '' }}</textarea>
+    </div>
+    <div style="margin-top:12px;">
+      <label>仓位建议</label>
+      <textarea name="position_plan" rows="2" style="width:100%;margin-top:6px;padding:8px;border-radius:8px;border:1px solid #3a455d;background:#111827;color:#f2f6ff;">{{ review.position_plan if review else '' }}</textarea>
+    </div>
+    <button type="submit" style="margin-top:12px;padding:8px 14px;border-radius:999px;border:1px solid #48d4b5;background:rgba(72,212,181,.15);color:#f2f6ff;cursor:pointer;">保存编辑</button>
+  </form>
+  <div style="margin-top:10px;display:flex;gap:10px;">
+    <form method="post" action="/daily/{{ trade_date }}/archive">
+      <button type="submit" style="padding:8px 14px;border-radius:999px;border:1px solid #f6c453;background:rgba(246,196,83,.15);color:#f2f6ff;cursor:pointer;">归档本日复盘</button>
+    </form>
+    <form method="post" action="/daily/{{ trade_date }}/unarchive">
+      <button type="submit" style="padding:8px 14px;border-radius:999px;border:1px solid #48d4b5;background:rgba(72,212,181,.15);color:#f2f6ff;cursor:pointer;">恢复为活跃</button>
+    </form>
+  </div>
 </div>
 {% endblock %}
