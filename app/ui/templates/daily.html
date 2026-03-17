@@ -20,6 +20,17 @@
 </div>
 {% endif %}
 
+{% if pipeline_status and pipeline_status.status %}
+<div class="card" style="margin-bottom:14px;">
+  <span class="tag {% if pipeline_status.status == 'success' %}ok{% elif pipeline_status.status == 'failed' %}risk{% else %}warn{% endif %}">
+    任务状态：{{ pipeline_status.status }}
+  </span>
+  <p style="margin-top:8px;color:var(--text);">{{ pipeline_status.message }}</p>
+  <p style="margin-top:6px;">更新时间：{{ pipeline_status.updated_at }}</p>
+  <p style="margin-top:6px;"><a href="/daily/{{ trade_date }}" style="color:var(--primary)">点击刷新当前页面</a></p>
+</div>
+{% endif %}
+
 <div class="grid">
   <div class="card">
     <h2>交易日切换与复盘创建</h2>

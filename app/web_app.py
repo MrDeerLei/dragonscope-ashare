@@ -8,18 +8,20 @@ from typing import Any
 from urllib.parse import quote
 
 import pandas as pd
-from fastapi import FastAPI, Form, Query, Request
+from fastapi import BackgroundTasks, FastAPI, Form, Query, Request
 from fastapi.responses import RedirectResponse
 from fastapi.responses import HTMLResponse
+from fastapi.responses import JSONResponse
 from fastapi.templating import Jinja2Templates
 
-from app.config import DB_PATH, PROJECT_ROOT
+from app.config import DB_PATH, EXPORT_DIR, PROJECT_ROOT
 from app.database import connect_db, init_db
 from app.settings_store import get_tushare_token, llm_config_status, load_settings, save_settings
 
 
 TEMPLATES_DIR = PROJECT_ROOT / "app" / "ui" / "templates"
 SCRIPTS_DIR = PROJECT_ROOT / "scripts"
+PIPELINE_STATUS_PATH = EXPORT_DIR / "pipeline_status.json"
 
 app = FastAPI(title="DragonScope-AShare Dashboard", version="0.5.0-dev")
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
@@ -72,6 +74,7 @@ def _run_script(*args: str) -> tuple[bool, str]:
             capture_output=True,
             text=True,
             check=True,
+            timeout=180,
         )
         output = (completed.stdout or "").strip()
         if output:
@@ -82,6 +85,45 @@ def _run_script(*args: str) -> tuple[bool, str]:
         stdout = (exc.stdout or "").strip()
         msg = stderr or stdout or str(exc)
         return False, msg.splitlines()[-1][:240]
+    except subprocess.TimeoutExpired:
+        return False, "执行超时（>180秒），请检查网络、Token权限或稍后重试。"
+
+
+def _load_pipeline_status() -> dict[str, Any]:
+    if not PIPELINE_STATUS_PATH.exists():
+        return {}
+    try:
+        return json.loads(PIPELINE_STATUS_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def _save_pipeline_status(data: dict[str, Any]):
+    PIPELINE_STATUS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    PIPELINE_STATUS_PATH.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _update_pipeline_status(trade_date: str, status: str, message: str):
+    data = _load_pipeline_status()
+    data[trade_date] = {
+        "status": status,
+        "message": message,
+        "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+    }
+    _save_pipeline_status(data)
+
+
+def _run_daily_pipeline_task(trade_date: str):
+    _update_pipeline_status(trade_date, "running", "任务运行中，请稍候刷新页面。")
+    ok_sync, sync_msg = _run_script(str(SCRIPTS_DIR / "sync_day.py"), "--date", trade_date)
+    if not ok_sync:
+        _update_pipeline_status(trade_date, "failed", f"采集失败：{sync_msg}")
+        return
+    ok_review, review_msg = _run_script(str(SCRIPTS_DIR / "generate_daily_review_from_db.py"), "--date", trade_date)
+    if not ok_review:
+        _update_pipeline_status(trade_date, "failed", f"复盘生成失败：{review_msg}")
+        return
+    _update_pipeline_status(trade_date, "success", f"已完成采集+复盘：{sync_msg} / {review_msg}")
 
 
 def _upsert_custom_summary(trade_date: str, custom_summary: str):
@@ -328,17 +370,15 @@ def save_settings_page(
 
 
 @app.post("/ops/run-daily")
-def run_daily_pipeline(trade_date: str = Form(...)):
+def run_daily_pipeline(background_tasks: BackgroundTasks, trade_date: str = Form(...)):
     normalized = _normalize_trade_date(trade_date)
     if not normalized:
         return RedirectResponse(url="/?msg=" + quote("交易日格式错误，请使用 YYYYMMDD 或 YYYY-MM-DD"), status_code=303)
-    ok_sync, sync_msg = _run_script(str(SCRIPTS_DIR / "sync_day.py"), "--date", normalized)
-    if not ok_sync:
-        return RedirectResponse(url=f"/daily/{normalized}?msg=" + quote(f"采集失败：{sync_msg}"), status_code=303)
-    ok_review, review_msg = _run_script(str(SCRIPTS_DIR / "generate_daily_review_from_db.py"), "--date", normalized)
-    if not ok_review:
-        return RedirectResponse(url=f"/daily/{normalized}?msg=" + quote(f"复盘生成失败：{review_msg}"), status_code=303)
-    return RedirectResponse(url=f"/daily/{normalized}?msg=" + quote(f"已完成采集+复盘：{sync_msg}"), status_code=303)
+    token = get_tushare_token()
+    if not token:
+        return RedirectResponse(url=f"/daily/{normalized}?msg=" + quote("未配置 Tushare Token，请先去设置中心保存。"), status_code=303)
+    background_tasks.add_task(_run_daily_pipeline_task, normalized)
+    return RedirectResponse(url=f"/daily/{normalized}?msg=" + quote("任务已启动，请等待 10~60 秒后刷新查看状态。"), status_code=303)
 
 
 @app.post("/ops/create-review")
@@ -381,6 +421,7 @@ def daily_page(request: Request, trade_date: str):
     llm_ready, llm_msg = llm_config_status()
     calendar_rows = _build_trade_calendar(trade_date)
     page_msg = request.query_params.get("msg", "")
+    pipeline_status = _load_pipeline_status().get(trade_date, {})
     return templates.TemplateResponse(
         request,
         "daily.html",
@@ -396,8 +437,16 @@ def daily_page(request: Request, trade_date: str):
             "llm_ready": llm_ready,
             "llm_msg": llm_msg,
             "page_msg": page_msg,
+            "pipeline_status": pipeline_status,
         },
     )
+
+
+@app.get("/ops/status/{trade_date}")
+def get_run_status(trade_date: str):
+    normalized = _normalize_trade_date(trade_date) or trade_date
+    status = _load_pipeline_status().get(normalized, {})
+    return JSONResponse({"trade_date": normalized, "status": status})
 
 
 @app.post("/daily/{trade_date}/edit")
