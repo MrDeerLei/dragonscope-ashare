@@ -1,0 +1,13 @@
+{
+  "tushare": {
+    "token": "replace-with-your-tushare-token"
+  },
+  "llm": {
+    "provider": "openai-compatible",
+    "base_url": "https://api.openai.com/v1",
+    "model": "gpt-5-mini",
+    "api_key": "replace-with-your-llm-token",
+    "temperature": 0.2,
+    "max_tokens": 1200
+  }
+}

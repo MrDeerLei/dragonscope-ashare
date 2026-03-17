@@ -5,8 +5,11 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from app.settings_store import get_tushare_token
 
 
 def parse_args():
@@ -44,9 +47,10 @@ def run_step(cmd: list[str]):
 
 
 def main():
-    token = os.getenv("TUSHARE_TOKEN", "").strip()
+    token = get_tushare_token() or os.getenv("TUSHARE_TOKEN", "").strip()
     if not token:
-        raise ValueError("Missing TUSHARE_TOKEN. Please export token before running pipeline.")
+        raise ValueError("Missing Tushare token. Please configure it in data/app_settings.json or export TUSHARE_TOKEN.")
+    os.environ["TUSHARE_TOKEN"] = token
 
     args = parse_args()
     trade_date = normalize_trade_date(args.date)

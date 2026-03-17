@@ -15,11 +15,11 @@ from fastapi.templating import Jinja2Templates
 
 from app.config import DB_PATH, PROJECT_ROOT
 from app.database import connect_db, init_db
+from app.settings_store import get_tushare_token, llm_config_status, load_settings, save_settings
 
 
 TEMPLATES_DIR = PROJECT_ROOT / "app" / "ui" / "templates"
 SCRIPTS_DIR = PROJECT_ROOT / "scripts"
-LLM_CONFIG_PATH = PROJECT_ROOT / "data" / "llm_config.json"
 
 app = FastAPI(title="DragonScope-AShare Dashboard", version="0.5.0-dev")
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
@@ -60,8 +60,10 @@ def _to_date_input(trade_date: str | None) -> str:
 def _run_script(*args: str) -> tuple[bool, str]:
     cmd = [sys.executable, *args]
     env = os.environ.copy()
-    if "TUSHARE_TOKEN" not in env or not env["TUSHARE_TOKEN"].strip():
-        return False, "未检测到 TUSHARE_TOKEN，无法采集。请先在启动工作台前 export TUSHARE_TOKEN=你的token"
+    token = get_tushare_token()
+    if not token:
+        return False, "未配置 Tushare Token，请先到“设置中心”填写。"
+    env["TUSHARE_TOKEN"] = token
     try:
         completed = subprocess.run(
             cmd,
@@ -96,28 +98,13 @@ def _upsert_custom_summary(trade_date: str, custom_summary: str):
         conn.commit()
 
 
-def _llm_config_status() -> tuple[bool, str]:
-    if not LLM_CONFIG_PATH.exists():
-        return False, "未检测到 data/llm_config.json，请先复制示例并填入大模型配置。"
-    try:
-        config = json.loads(LLM_CONFIG_PATH.read_text(encoding="utf-8"))
-    except Exception:
-        return False, "llm_config.json 格式错误，请检查 JSON。"
-    endpoint = str(config.get("base_url", "")).strip()
-    token = str(config.get("api_key", "")).strip()
-    model = str(config.get("model", "")).strip()
-    if endpoint and token and model:
-        return True, f"已配置模型：{model}"
-    return False, "llm_config.json 存在，但 base_url/api_key/model 未配置完整。"
-
-
 def _load_recent_trade_dates(anchor_trade_date: str | None, limit: int = 22) -> list[str]:
     if anchor_trade_date:
         start = (datetime.strptime(anchor_trade_date, "%Y%m%d") - timedelta(days=60)).strftime("%Y%m%d")
         try:
             from app.tushare_data import get_pro
 
-            token = os.getenv("TUSHARE_TOKEN", "").strip()
+            token = get_tushare_token()
             if token:
                 pro = get_pro(token)
                 cal = pro.trade_cal(exchange="SSE", start_date=start, end_date=anchor_trade_date, is_open="1")
@@ -277,6 +264,69 @@ def dashboard(request: Request):
     )
 
 
+@app.get("/settings", response_class=HTMLResponse)
+def settings_page(request: Request):
+    settings = load_settings()
+    llm = settings.get("llm", {})
+    model_options = [
+        "gpt-5-mini",
+        "gpt-5",
+        "gpt-4.1",
+        "deepseek-chat",
+        "qwen-plus",
+        "glm-4.5",
+    ]
+    selected_model = str(llm.get("model", "gpt-5-mini")).strip()
+    custom_model = ""
+    if selected_model and selected_model not in model_options:
+        custom_model = selected_model
+    return templates.TemplateResponse(
+        request,
+        "settings.html",
+        {
+            "settings": settings,
+            "model_options": model_options,
+            "selected_model": selected_model if selected_model in model_options else "",
+            "custom_model": custom_model,
+            "page_msg": request.query_params.get("msg", ""),
+        },
+    )
+
+
+@app.post("/settings/save")
+def save_settings_page(
+    tushare_token: str = Form(""),
+    llm_provider: str = Form("openai-compatible"),
+    llm_base_url: str = Form(""),
+    llm_model: str = Form(""),
+    llm_model_custom: str = Form(""),
+    llm_api_key: str = Form(""),
+    llm_temperature: str = Form("0.2"),
+    llm_max_tokens: str = Form("1200"),
+):
+    settings = load_settings()
+    model = _safe_text(llm_model_custom) or _safe_text(llm_model) or "gpt-5-mini"
+    try:
+        temperature = float(llm_temperature)
+    except Exception:
+        temperature = 0.2
+    try:
+        max_tokens = int(float(llm_max_tokens))
+    except Exception:
+        max_tokens = 1200
+    settings["tushare"] = {"token": _safe_text(tushare_token)}
+    settings["llm"] = {
+        "provider": _safe_text(llm_provider) or "openai-compatible",
+        "base_url": _safe_text(llm_base_url),
+        "model": model,
+        "api_key": _safe_text(llm_api_key),
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+    }
+    save_settings(settings)
+    return RedirectResponse(url="/settings?msg=" + quote("设置已保存"), status_code=303)
+
+
 @app.post("/ops/run-daily")
 def run_daily_pipeline(trade_date: str = Form(...)):
     normalized = _normalize_trade_date(trade_date)
@@ -328,7 +378,7 @@ def daily_page(request: Request, trade_date: str):
     board_dist = {}
     if market_row and market_row.get("board_dist_json"):
         board_dist = json.loads(market_row["board_dist_json"])
-    llm_ready, llm_msg = _llm_config_status()
+    llm_ready, llm_msg = llm_config_status()
     calendar_rows = _build_trade_calendar(trade_date)
     page_msg = request.query_params.get("msg", "")
     return templates.TemplateResponse(

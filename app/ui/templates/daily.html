@@ -183,7 +183,7 @@
   <p><span class="tag ok">模型配置已就绪</span> {{ llm_msg }}</p>
   {% else %}
   <p><span class="tag risk">请先配置模型</span> {{ llm_msg }}</p>
-  <p>操作：复制 <code>data/llm_config.example.json</code> 为 <code>data/llm_config.json</code>，填入你的模型地址、模型名和 Token。</p>
+  <p>操作：进入 <a href="/settings" style="color:var(--primary)">设置中心</a>，填写模型地址、模型名和 Token 并保存。</p>
   {% endif %}
   <form method="post" action="/daily/{{ trade_date }}/custom-summary">
     <textarea name="custom_summary" rows="6" style="width:100%;margin-top:6px;padding:8px;border-radius:8px;border:1px solid #3a455d;background:#111827;color:#f2f6ff;">{{ review.review_markdown if review else '' }}</textarea>
