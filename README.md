@@ -129,7 +129,24 @@ DragonScope-AShare/
 pip install -r requirements.txt
 ```
 
-### 2. 配置 Tushare Token
+### 2. 配置统一设置（推荐）
+
+复制示例配置：
+
+```bash
+cp data/app_settings.example.json data/app_settings.json
+```
+
+然后填写：
+
+1. `tushare.token`
+2. `llm.base_url`
+3. `llm.model`
+4. `llm.api_key`
+
+或者直接启动工作台后进入“设置中心”页面填写并保存。
+
+### 2.1 兼容旧方式：仅配置环境变量 Tushare Token
 
 ```bash
 export TUSHARE_TOKEN=你的token
@@ -199,6 +216,57 @@ python scripts/compare_periods.py \
 ```bash
 python scripts/generate_compare_matrix.py --start 20260313 --end 20260316
 ```
+
+### 9. 启动本地复盘工作台（v0.5-dev）
+
+```bash
+python scripts/run_dashboard.py
+```
+
+打开：
+
+```text
+http://127.0.0.1:8000
+```
+
+工作台能力：
+
+1. 首页看最新市场状态、主线题材、龙头梯队和拐点提示
+2. 首页支持“今日一键采集+复盘”手动触发
+3. 单日页支持交易日历状态查看（已采集/待创建/已归档）
+4. 一键采集改为后台任务，点击后立即返回并显示运行状态
+5. 单日页支持人工编辑复盘字段（主线、龙头、明日计划等）
+6. 单日页支持“一键归档/恢复”，归档状态写入 `daily_review.review_status`
+7. 单日页支持自定义总结，并提示先到“设置中心”配置模型
+8. 历史回查页支持按区间/主线/龙头/归档状态筛选
+9. 新增“设置中心”统一维护 Tushare + LLM Token
+10. 周期页和矩阵页支持区间复盘与多日横向对比
+
+### 10. 交易日收盘后自动跑当日采集+复盘（可用于定时任务）
+
+```bash
+python scripts/run_daily_pipeline.py --date 2026-03-17
+```
+
+不传 `--date` 时默认使用当天日期。
+
+cron 示例（工作日 15:20 自动执行）：
+
+```bash
+20 15 * * 1-5 cd /Users/ray/Myworkspace/DragonScope-AShare && /usr/bin/env bash -lc 'python3 scripts/run_daily_pipeline.py >> data/exports/eod.log 2>&1'
+```
+
+### 11. 配置大模型（用于自定义总结扩展）
+
+```bash
+cp data/app_settings.example.json data/app_settings.json
+```
+
+然后填入你自己的：
+
+1. `llm.base_url`
+2. `llm.model`
+3. `llm.api_key`
 
 ## 文档入口
 

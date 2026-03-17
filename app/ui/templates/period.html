@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}{{ period_id }} 周期复盘{% endblock %}
+{% block content %}
+<div class="hero">
+  <h1>{{ period_id }} 周期复盘</h1>
+  <p>情绪均值：{{ "%.2f"|format(period.emotion_avg) }} | 主线强度均值：{{ "%.2f"|format(period.limit_up_avg) }} 涨停</p>
+</div>
+
+<div class="grid">
+  <div class="card">
+    <h2>周期指标</h2>
+    <div class="kv">
+      <div class="k">情绪均值</div><div class="v">{{ "%.2f"|format(period.emotion_avg) }}</div>
+      <div class="k">情绪区间</div><div class="v">{{ "%.2f"|format(period.emotion_min) }} ~ {{ "%.2f"|format(period.emotion_max) }}</div>
+      <div class="k">平均成交额</div><div class="v">{{ "%.2f"|format(period.amount_avg) }} 亿</div>
+      <div class="k">平均涨停 / 跌停</div><div class="v">{{ "%.2f"|format(period.limit_up_avg) }} / {{ "%.2f"|format(period.limit_down_avg) }}</div>
+      <div class="k">平均溢价</div><div class="v">{{ "%.2f"|format(period.premium_avg if period.premium_avg is not none else 0) }}%</div>
+      <div class="k">平均晋级率</div><div class="v">{{ "%.2f"|format(period.advance_rate_avg if period.advance_rate_avg is not none else 0) }}%</div>
+      <div class="k">最高连板峰值</div><div class="v">{{ period.highest_board_max }} 板</div>
+    </div>
+  </div>
+  <div class="card">
+    <h2>周期主线 Top10</h2>
+    <table>
+      <thead>
+        <tr><th>题材</th><th>出现天数</th><th>总涨停</th><th>平均强度</th><th>核心</th></tr>
+      </thead>
+      <tbody>
+      {% for row in themes[:10] %}
+        <tr>
+          <td>{{ row.theme_name }}</td>
+          <td>{{ row.appear_days }}</td>
+          <td>{{ row.limit_up_total }}</td>
+          <td>{{ "%.2f"|format(row.avg_theme_score) }}</td>
+          <td>{{ row.best_leader }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="card">
+    <h2>周期龙头 Top10</h2>
+    <table>
+      <thead>
+        <tr><th>个股</th><th>角色</th><th>领涨天数</th><th>最高板</th><th>题材</th></tr>
+      </thead>
+      <tbody>
+      {% for row in leaders[:10] %}
+        <tr>
+          <td>{{ row.name }}</td>
+          <td>{{ row.role_type }}</td>
+          <td>{{ row.leader_days }}</td>
+          <td>{{ row.highest_board }}</td>
+          <td>{{ row.theme_name }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card" style="margin-top:14px;">
+  <h2>周期拐点</h2>
+  <table>
+    <thead>
+      <tr><th>日期</th><th>情绪变化</th><th>涨/跌停变化</th><th>主线切换</th><th>拐点评分</th><th>原因</th></tr>
+    </thead>
+    <tbody>
+    {% for row in matrix %}
+      <tr>
+        <td>{{ row.prev_trade_date }} → {{ row.trade_date }}</td>
+        <td>{{ "%+.2f"|format(row.emotion_delta) }}</td>
+        <td>{{ "%+.0f"|format(row.limit_up_delta) }} / {{ "%+.0f"|format(row.limit_down_delta) }}</td>
+        <td>{{ "是" if row.main_theme_changed else "否" }}</td>
+        <td>{{ "%.2f"|format(row.inflection_score) }}</td>
+        <td>{{ row.inflection_reason }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

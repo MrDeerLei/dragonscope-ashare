@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}设置中心{% endblock %}
+{% block content %}
+<div class="hero">
+  <h1>设置中心</h1>
+  <p>统一管理 Tushare Token 与大模型配置，保存到本地私有文件 <code>data/app_settings.json</code>。</p>
+</div>
+
+{% if page_msg %}
+<div class="card" style="margin-bottom:14px;">
+  <span class="tag ok">提示</span>
+  <p style="margin-top:8px;color:var(--text);">{{ page_msg }}</p>
+</div>
+{% endif %}
+
+<div class="card">
+  <h2>统一配置</h2>
+  <form method="post" action="/settings/save">
+    <div class="grid">
+      <div>
+        <label>Tushare Token</label>
+        <input type="password" name="tushare_token" value="{{ settings.tushare.token if settings.tushare else '' }}" style="width:100%;margin-top:6px;padding:8px;border-radius:8px;border:1px solid #3a455d;background:#111827;color:#f2f6ff;">
+      </div>
+      <div>
+        <label>LLM Provider</label>
+        <select name="llm_provider" style="width:100%;margin-top:6px;padding:8px;border-radius:8px;border:1px solid #3a455d;background:#111827;color:#f2f6ff;">
+          <option value="openai-compatible" {% if settings.llm.provider == "openai-compatible" %}selected{% endif %}>openai-compatible</option>
+          <option value="openai" {% if settings.llm.provider == "openai" %}selected{% endif %}>openai</option>
+          <option value="custom" {% if settings.llm.provider == "custom" %}selected{% endif %}>custom</option>
+        </select>
+      </div>
+      <div>
+        <label>LLM Base URL</label>
+        <input name="llm_base_url" value="{{ settings.llm.base_url if settings.llm else '' }}" style="width:100%;margin-top:6px;padding:8px;border-radius:8px;border:1px solid #3a455d;background:#111827;color:#f2f6ff;">
+      </div>
+      <div>
+        <label>LLM 模型（常用）</label>
+        <select name="llm_model" style="width:100%;margin-top:6px;padding:8px;border-radius:8px;border:1px solid #3a455d;background:#111827;color:#f2f6ff;">
+          <option value="">-- 请选择 --</option>
+          {% for m in model_options %}
+          <option value="{{ m }}" {% if selected_model == m %}selected{% endif %}>{{ m }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label>LLM 模型（自定义，优先生效）</label>
+        <input name="llm_model_custom" value="{{ custom_model }}" placeholder="例如：gpt-5, doubao-1.5-pro" style="width:100%;margin-top:6px;padding:8px;border-radius:8px;border:1px solid #3a455d;background:#111827;color:#f2f6ff;">
+      </div>
+      <div>
+        <label>LLM API Key / Token</label>
+        <input type="password" name="llm_api_key" value="{{ settings.llm.api_key if settings.llm else '' }}" style="width:100%;margin-top:6px;padding:8px;border-radius:8px;border:1px solid #3a455d;background:#111827;color:#f2f6ff;">
+      </div>
+      <div>
+        <label>Temperature</label>
+        <input name="llm_temperature" value="{{ settings.llm.temperature if settings.llm else '0.2' }}" style="width:100%;margin-top:6px;padding:8px;border-radius:8px;border:1px solid #3a455d;background:#111827;color:#f2f6ff;">
+      </div>
+      <div>
+        <label>Max Tokens</label>
+        <input name="llm_max_tokens" value="{{ settings.llm.max_tokens if settings.llm else '1200' }}" style="width:100%;margin-top:6px;padding:8px;border-radius:8px;border:1px solid #3a455d;background:#111827;color:#f2f6ff;">
+      </div>
+    </div>
+    <button type="submit" style="margin-top:12px;padding:8px 14px;border-radius:999px;border:1px solid #48d4b5;background:rgba(72,212,181,.15);color:#f2f6ff;cursor:pointer;">保存统一配置</button>
+  </form>
+</div>
+
+<div class="card" style="margin-top:14px;">
+  <h2>说明</h2>
+  <p>1. 配置保存后，工作台的一键采集会优先使用这里的 Tushare Token。</p>
+  <p>2. 自定义总结会读取这里的大模型配置。</p>
+  <p>3. 为了安全，<code>data/app_settings.json</code> 已加入 .gitignore，不会提交到 GitHub。</p>
+</div>
+{% endblock %}

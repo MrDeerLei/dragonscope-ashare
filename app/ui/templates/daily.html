@@ -1,0 +1,248 @@
+{% extends "base.html" %}
+{% block title %}{{ trade_date }} 单日复盘{% endblock %}
+{% block content %}
+<div class="hero">
+  <h1>{{ trade_date }} 单日复盘</h1>
+  <p>主线：{{ review.main_theme if review else "-" }} | 次主线：{{ review.secondary_theme if review else "-" }}</p>
+  <p>归档状态：
+    {% if review.review_status == "archived" %}
+      <span class="tag warn">已归档</span>
+    {% else %}
+      <span class="tag ok">活跃</span>
+    {% endif %}
+  </p>
+</div>
+
+{% if page_msg %}
+<div class="card" style="margin-bottom:14px;">
+  <span class="tag warn">提示</span>
+  <p style="margin-top:8px;color:var(--text);">{{ page_msg }}</p>
+</div>
+{% endif %}
+
+{% if pipeline_status and pipeline_status.status %}
+<div class="card" style="margin-bottom:14px;">
+  <span class="tag {% if pipeline_status.status == 'success' %}ok{% elif pipeline_status.status == 'failed' %}risk{% else %}warn{% endif %}">
+    任务状态：{{ pipeline_status.status }}
+  </span>
+  <p style="margin-top:8px;color:var(--text);">{{ pipeline_status.message }}</p>
+  <p style="margin-top:6px;">更新时间：{{ pipeline_status.updated_at }}</p>
+  <p style="margin-top:6px;"><a href="/daily/{{ trade_date }}" style="color:var(--primary)">点击刷新当前页面</a></p>
+</div>
+{% endif %}
+
+<div class="grid">
+  <div class="card">
+    <h2>交易日切换与复盘创建</h2>
+    <form method="get" action="/daily" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+      <input type="date" name="date" value="{{ trade_date_input }}" style="padding:8px;border-radius:8px;border:1px solid #3a455d;background:#111827;color:#f2f6ff;">
+      <button type="submit" style="padding:8px 14px;border-radius:999px;border:1px solid #48d4b5;background:rgba(72,212,181,.15);color:#f2f6ff;cursor:pointer;">查看该交易日</button>
+    </form>
+    <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;">
+      <form method="post" action="/ops/run-daily">
+        <input type="hidden" name="trade_date" value="{{ trade_date }}">
+        <button type="submit" style="padding:8px 14px;border-radius:999px;border:1px solid #48d4b5;background:rgba(72,212,181,.15);color:#f2f6ff;cursor:pointer;">一键采集+复盘</button>
+      </form>
+      <form method="post" action="/ops/create-review">
+        <input type="hidden" name="trade_date" value="{{ trade_date }}">
+        <button type="submit" style="padding:8px 14px;border-radius:999px;border:1px solid #f6c453;background:rgba(246,196,83,.15);color:#f2f6ff;cursor:pointer;">仅生成复盘文档</button>
+      </form>
+    </div>
+    {% if not market %}
+    <p style="margin-top:10px;color:#ffb4b8;">当前交易日未采集到数据。可点击“一键采集+复盘”创建记录。</p>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2>最近交易日日历（状态）</h2>
+    <table>
+      <thead>
+        <tr><th>日期</th><th>行情数据</th><th>复盘记录</th><th>状态</th></tr>
+      </thead>
+      <tbody>
+      {% for row in calendar_rows %}
+        <tr>
+          <td><a href="/daily/{{ row.trade_date }}" style="color:var(--text)">{{ row.trade_date }}</a></td>
+          <td>
+            {% if row.has_market_stats == 1 %}
+              <span class="tag ok">已采集</span>
+            {% else %}
+              <span class="tag risk">缺失</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if row.has_review_row == 1 %}
+              <span class="tag ok">已创建</span>
+            {% else %}
+              <span class="tag warn">待创建</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if row.review_status == "archived" %}
+              <span class="tag warn">已归档</span>
+            {% else %}
+              <span class="tag ok">活跃</span>
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if market %}
+<div class="grid" style="margin-top:14px;">
+  <div class="card">
+    <h2>市场指标</h2>
+    <div class="kv">
+      <div class="k">市场阶段</div><div class="v">{{ market.market_stage }}</div>
+      <div class="k">情绪分</div><div class="v">{{ "%.2f"|format(market.emotion_score) }}</div>
+      <div class="k">两市成交额</div><div class="v">{{ "%.2f"|format(market.amount_total) }} 亿</div>
+      <div class="k">成交额变化</div><div class="v">{{ "%+.2f"|format(market.amount_delta) }} 亿</div>
+      <div class="k">非ST涨停 / 跌停</div><div class="v">{{ market.limit_up_non_st }} / {{ market.limit_down_non_st }}</div>
+      <div class="k">昨日涨停溢价</div><div class="v">{{ "%.2f"|format(market.premium_avg if market.premium_avg is not none else 0) }}%</div>
+      <div class="k">晋级率</div><div class="v">{{ "%.2f"|format(market.advance_rate if market.advance_rate is not none else 0) }}%</div>
+      <div class="k">非ST最高连板</div><div class="v">{{ market.highest_board_non_st }} 板</div>
+    </div>
+  </div>
+  <div class="card">
+    <h2>自动结论</h2>
+    <div class="kv">
+      <div class="k">市场龙头</div><div class="v">{{ review.market_leader if review else "-" }}</div>
+      <div class="k">容量核心</div><div class="v">{{ review.capacity_core if review else "-" }}</div>
+      <div class="k">风险锚</div><div class="v">{{ review.risk_anchor if review else "-" }}</div>
+      <div class="k">最佳形态</div><div class="v">{{ review.best_setup if review else "-" }}</div>
+      <div class="k">规避形态</div><div class="v">{{ review.bad_setup if review else "-" }}</div>
+      <div class="k">明日计划</div><div class="v">{{ review.tomorrow_plan if review else "-" }}</div>
+      <div class="k">仓位建议</div><div class="v">{{ review.position_plan if review else "-" }}</div>
+    </div>
+  </div>
+  <div class="card">
+    <h2>连板分布</h2>
+    <table>
+      <thead>
+        <tr><th>板数</th><th>数量</th></tr>
+      </thead>
+      <tbody>
+      {% for board, cnt in board_dist.items() %}
+        <tr><td>{{ board }} 板</td><td>{{ cnt }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<div class="card" style="margin-top:14px;">
+  <h2>人工编辑</h2>
+  <p>可以在这里覆盖自动结论，保存后会写入数据库 `daily_review`。</p>
+  <form method="post" action="/daily/{{ trade_date }}/edit">
+    <div class="grid">
+      <div>
+        <label>主线题材</label>
+        <input name="main_theme" value="{{ review.main_theme if review else '' }}" style="width:100%;margin-top:6px;padding:8px;border-radius:8px;border:1px solid #3a455d;background:#111827;color:#f2f6ff;">
+      </div>
+      <div>
+        <label>次主线</label>
+        <input name="secondary_theme" value="{{ review.secondary_theme if review else '' }}" style="width:100%;margin-top:6px;padding:8px;border-radius:8px;border:1px solid #3a455d;background:#111827;color:#f2f6ff;">
+      </div>
+      <div>
+        <label>市场龙头</label>
+        <input name="market_leader" value="{{ review.market_leader if review else '' }}" style="width:100%;margin-top:6px;padding:8px;border-radius:8px;border:1px solid #3a455d;background:#111827;color:#f2f6ff;">
+      </div>
+      <div>
+        <label>容量核心</label>
+        <input name="capacity_core" value="{{ review.capacity_core if review else '' }}" style="width:100%;margin-top:6px;padding:8px;border-radius:8px;border:1px solid #3a455d;background:#111827;color:#f2f6ff;">
+      </div>
+      <div>
+        <label>风险锚</label>
+        <input name="risk_anchor" value="{{ review.risk_anchor if review else '' }}" style="width:100%;margin-top:6px;padding:8px;border-radius:8px;border:1px solid #3a455d;background:#111827;color:#f2f6ff;">
+      </div>
+      <div>
+        <label>最佳形态</label>
+        <input name="best_setup" value="{{ review.best_setup if review else '' }}" style="width:100%;margin-top:6px;padding:8px;border-radius:8px;border:1px solid #3a455d;background:#111827;color:#f2f6ff;">
+      </div>
+    </div>
+    <div style="margin-top:12px;">
+      <label>规避形态</label>
+      <textarea name="bad_setup" rows="2" style="width:100%;margin-top:6px;padding:8px;border-radius:8px;border:1px solid #3a455d;background:#111827;color:#f2f6ff;">{{ review.bad_setup if review else '' }}</textarea>
+    </div>
+    <div style="margin-top:12px;">
+      <label>明日计划</label>
+      <textarea name="tomorrow_plan" rows="3" style="width:100%;margin-top:6px;padding:8px;border-radius:8px;border:1px solid #3a455d;background:#111827;color:#f2f6ff;">{{ review.tomorrow_plan if review else '' }}</textarea>
+    </div>
+    <div style="margin-top:12px;">
+      <label>仓位建议</label>
+      <textarea name="position_plan" rows="2" style="width:100%;margin-top:6px;padding:8px;border-radius:8px;border:1px solid #3a455d;background:#111827;color:#f2f6ff;">{{ review.position_plan if review else '' }}</textarea>
+    </div>
+    <button type="submit" style="margin-top:12px;padding:8px 14px;border-radius:999px;border:1px solid #48d4b5;background:rgba(72,212,181,.15);color:#f2f6ff;cursor:pointer;">保存编辑</button>
+  </form>
+  <div style="margin-top:10px;display:flex;gap:10px;">
+    <form method="post" action="/daily/{{ trade_date }}/archive">
+      <button type="submit" style="padding:8px 14px;border-radius:999px;border:1px solid #f6c453;background:rgba(246,196,83,.15);color:#f2f6ff;cursor:pointer;">归档本日复盘</button>
+    </form>
+    <form method="post" action="/daily/{{ trade_date }}/unarchive">
+      <button type="submit" style="padding:8px 14px;border-radius:999px;border:1px solid #48d4b5;background:rgba(72,212,181,.15);color:#f2f6ff;cursor:pointer;">恢复为活跃</button>
+    </form>
+  </div>
+</div>
+
+<div class="card" style="margin-top:14px;">
+  <h2>自定义总结（大模型辅助）</h2>
+  {% if llm_ready %}
+  <p><span class="tag ok">模型配置已就绪</span> {{ llm_msg }}</p>
+  {% else %}
+  <p><span class="tag risk">请先配置模型</span> {{ llm_msg }}</p>
+  <p>操作：进入 <a href="/settings" style="color:var(--primary)">设置中心</a>，填写模型地址、模型名和 Token 并保存。</p>
+  {% endif %}
+  <form method="post" action="/daily/{{ trade_date }}/custom-summary">
+    <textarea name="custom_summary" rows="6" style="width:100%;margin-top:6px;padding:8px;border-radius:8px;border:1px solid #3a455d;background:#111827;color:#f2f6ff;">{{ review.review_markdown if review else '' }}</textarea>
+    <button type="submit" style="margin-top:12px;padding:8px 14px;border-radius:999px;border:1px solid #48d4b5;background:rgba(72,212,181,.15);color:#f2f6ff;cursor:pointer;">保存自定义总结</button>
+  </form>
+</div>
+
+{% if market %}
+<div class="card" style="margin-top:14px;">
+  <h2>主线题材</h2>
+  <table>
+    <thead>
+      <tr><th>排名</th><th>题材</th><th>阶段</th><th>涨停</th><th>连板</th><th>核心</th><th>容量</th></tr>
+    </thead>
+    <tbody>
+    {% for row in themes %}
+      <tr>
+        <td>{{ row.theme_rank }}</td>
+        <td>{{ row.theme_name }}</td>
+        <td>{{ row.theme_stage }}</td>
+        <td>{{ row.limit_up_count }}</td>
+        <td>{{ row.board_count }}</td>
+        <td>{{ row.core_stock }}</td>
+        <td>{{ row.capacity_stock }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="card" style="margin-top:14px;">
+  <h2>龙头梯队</h2>
+  <table>
+    <thead>
+      <tr><th>个股</th><th>角色</th><th>题材</th><th>板数</th><th>强度</th></tr>
+    </thead>
+    <tbody>
+    {% for row in leaders[:20] %}
+      <tr>
+        <td>{{ row.name }}</td>
+        <td>{{ row.role_type }}</td>
+        <td>{{ row.theme_name }}</td>
+        <td>{{ row.board_count }}</td>
+        <td>{{ "%.2f"|format(row.leader_score) }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}
