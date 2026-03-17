@@ -1,6 +1,11 @@
 import json
+import os
 from pathlib import Path
+import subprocess
+import sys
+from datetime import datetime, timedelta
 from typing import Any
+from urllib.parse import quote
 
 import pandas as pd
 from fastapi import FastAPI, Form, Query, Request
@@ -13,6 +18,8 @@ from app.database import connect_db, init_db
 
 
 TEMPLATES_DIR = PROJECT_ROOT / "app" / "ui" / "templates"
+SCRIPTS_DIR = PROJECT_ROOT / "scripts"
+LLM_CONFIG_PATH = PROJECT_ROOT / "data" / "llm_config.json"
 
 app = FastAPI(title="DragonScope-AShare Dashboard", version="0.5.0-dev")
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
@@ -28,6 +35,126 @@ def _latest_trade_date() -> str | None:
     if df.empty:
         return None
     return str(df.iloc[0]["trade_date"])
+
+
+def _normalize_trade_date(value: str | None) -> str | None:
+    if not value:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    if len(text) == 8 and text.isdigit():
+        return text
+    if len(text) == 10 and text[4] == "-" and text[7] == "-":
+        return text.replace("-", "")
+    return None
+
+
+def _to_date_input(trade_date: str | None) -> str:
+    normalized = _normalize_trade_date(trade_date)
+    if not normalized:
+        return ""
+    return f"{normalized[:4]}-{normalized[4:6]}-{normalized[6:8]}"
+
+
+def _run_script(*args: str) -> tuple[bool, str]:
+    cmd = [sys.executable, *args]
+    env = os.environ.copy()
+    if "TUSHARE_TOKEN" not in env or not env["TUSHARE_TOKEN"].strip():
+        return False, "未检测到 TUSHARE_TOKEN，无法采集。请先在启动工作台前 export TUSHARE_TOKEN=你的token"
+    try:
+        completed = subprocess.run(
+            cmd,
+            cwd=str(PROJECT_ROOT),
+            env=env,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        output = (completed.stdout or "").strip()
+        if output:
+            return True, output.splitlines()[-1]
+        return True, "执行成功"
+    except subprocess.CalledProcessError as exc:
+        stderr = (exc.stderr or "").strip()
+        stdout = (exc.stdout or "").strip()
+        msg = stderr or stdout or str(exc)
+        return False, msg.splitlines()[-1][:240]
+
+
+def _upsert_custom_summary(trade_date: str, custom_summary: str):
+    with connect_db(DB_PATH) as conn:
+        conn.execute(
+            """
+            INSERT INTO daily_review (trade_date, market_stage, review_markdown, review_status)
+            VALUES (?, COALESCE((SELECT market_stage FROM daily_market_stats WHERE trade_date = ?), ''), ?, 'active')
+            ON CONFLICT(trade_date) DO UPDATE SET
+                review_markdown = excluded.review_markdown
+            """,
+            (trade_date, trade_date, _safe_text(custom_summary)),
+        )
+        conn.commit()
+
+
+def _llm_config_status() -> tuple[bool, str]:
+    if not LLM_CONFIG_PATH.exists():
+        return False, "未检测到 data/llm_config.json，请先复制示例并填入大模型配置。"
+    try:
+        config = json.loads(LLM_CONFIG_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return False, "llm_config.json 格式错误，请检查 JSON。"
+    endpoint = str(config.get("base_url", "")).strip()
+    token = str(config.get("api_key", "")).strip()
+    model = str(config.get("model", "")).strip()
+    if endpoint and token and model:
+        return True, f"已配置模型：{model}"
+    return False, "llm_config.json 存在，但 base_url/api_key/model 未配置完整。"
+
+
+def _load_recent_trade_dates(anchor_trade_date: str | None, limit: int = 22) -> list[str]:
+    if anchor_trade_date:
+        start = (datetime.strptime(anchor_trade_date, "%Y%m%d") - timedelta(days=60)).strftime("%Y%m%d")
+        try:
+            from app.tushare_data import get_pro
+
+            token = os.getenv("TUSHARE_TOKEN", "").strip()
+            if token:
+                pro = get_pro(token)
+                cal = pro.trade_cal(exchange="SSE", start_date=start, end_date=anchor_trade_date, is_open="1")
+                dates = sorted(cal["cal_date"].astype(str).tolist())
+                if dates:
+                    return dates[-limit:]
+        except Exception:
+            pass
+    df = _query_df("SELECT trade_date FROM daily_market_stats ORDER BY trade_date DESC LIMIT ?", (limit,))
+    dates = [str(v) for v in df["trade_date"].tolist()]
+    dates.reverse()
+    return dates
+
+
+def _build_trade_calendar(anchor_trade_date: str | None) -> list[dict[str, Any]]:
+    dates = _load_recent_trade_dates(anchor_trade_date, limit=22)
+    if not dates:
+        return []
+    placeholders = ",".join(["?"] * len(dates))
+    sql = f"""
+    SELECT
+        d.trade_date,
+        CASE WHEN m.trade_date IS NULL THEN 0 ELSE 1 END AS has_market_stats,
+        CASE WHEN r.trade_date IS NULL THEN 0 ELSE 1 END AS has_review_row,
+        COALESCE(r.review_status, 'active') AS review_status
+    FROM (
+        SELECT ? AS trade_date
+        {"".join([" UNION ALL SELECT ?" for _ in range(len(dates) - 1)])}
+    ) d
+    LEFT JOIN daily_market_stats m ON d.trade_date = m.trade_date
+    LEFT JOIN daily_review r ON d.trade_date = r.trade_date
+    ORDER BY d.trade_date DESC
+    """
+    rows = _query_df(sql, tuple(dates)).to_dict("records")
+    for row in rows:
+        row["trade_date_input"] = _to_date_input(str(row["trade_date"]))
+    return rows
 
 
 def _safe_text(value: Any) -> str:
@@ -144,12 +271,48 @@ def dashboard(request: Request):
             "leader_top": leader_top,
             "inflections": inflections,
             "recent_days": recent_days,
+            "today_date": datetime.now().strftime("%Y%m%d"),
+            "page_msg": request.query_params.get("msg", ""),
         },
     )
 
 
+@app.post("/ops/run-daily")
+def run_daily_pipeline(trade_date: str = Form(...)):
+    normalized = _normalize_trade_date(trade_date)
+    if not normalized:
+        return RedirectResponse(url="/?msg=" + quote("交易日格式错误，请使用 YYYYMMDD 或 YYYY-MM-DD"), status_code=303)
+    ok_sync, sync_msg = _run_script(str(SCRIPTS_DIR / "sync_day.py"), "--date", normalized)
+    if not ok_sync:
+        return RedirectResponse(url=f"/daily/{normalized}?msg=" + quote(f"采集失败：{sync_msg}"), status_code=303)
+    ok_review, review_msg = _run_script(str(SCRIPTS_DIR / "generate_daily_review_from_db.py"), "--date", normalized)
+    if not ok_review:
+        return RedirectResponse(url=f"/daily/{normalized}?msg=" + quote(f"复盘生成失败：{review_msg}"), status_code=303)
+    return RedirectResponse(url=f"/daily/{normalized}?msg=" + quote(f"已完成采集+复盘：{sync_msg}"), status_code=303)
+
+
+@app.post("/ops/create-review")
+def create_daily_review(trade_date: str = Form(...)):
+    normalized = _normalize_trade_date(trade_date)
+    if not normalized:
+        return RedirectResponse(url="/?msg=" + quote("交易日格式错误，请使用 YYYYMMDD 或 YYYY-MM-DD"), status_code=303)
+    ok_review, review_msg = _run_script(str(SCRIPTS_DIR / "generate_daily_review_from_db.py"), "--date", normalized)
+    if not ok_review:
+        return RedirectResponse(url=f"/daily/{normalized}?msg=" + quote(f"复盘生成失败：{review_msg}"), status_code=303)
+    return RedirectResponse(url=f"/daily/{normalized}?msg=" + quote(f"复盘文档已生成：{review_msg}"), status_code=303)
+
+
+@app.get("/daily", response_class=HTMLResponse)
+def daily_page_query(request: Request, date: str | None = Query(None)):
+    normalized = _normalize_trade_date(date) or _latest_trade_date()
+    if not normalized:
+        return templates.TemplateResponse(request, "empty.html", {"message": "暂无可查看交易日，请先同步数据。"})
+    return RedirectResponse(url=f"/daily/{normalized}", status_code=303)
+
+
 @app.get("/daily/{trade_date}", response_class=HTMLResponse)
 def daily_page(request: Request, trade_date: str):
+    trade_date = _normalize_trade_date(trade_date) or trade_date
     market_df = _query_df("SELECT * FROM daily_market_stats WHERE trade_date = ?", (trade_date,))
     review_df = _query_df("SELECT * FROM daily_review WHERE trade_date = ?", (trade_date,))
     theme_df = _query_df(
@@ -160,23 +323,29 @@ def daily_page(request: Request, trade_date: str):
         "SELECT * FROM daily_leader_stats WHERE trade_date = ? ORDER BY is_market_leader DESC, is_theme_leader DESC, leader_score DESC",
         (trade_date,),
     )
-    if market_df.empty:
-        return templates.TemplateResponse(request, "empty.html", {"message": f"{trade_date} 没有同步数据"})
-    market_row = market_df.iloc[0].to_dict()
+    market_row = market_df.iloc[0].to_dict() if len(market_df) else None
     review_row = review_df.iloc[0].to_dict() if len(review_df) else {}
     board_dist = {}
-    if market_row.get("board_dist_json"):
+    if market_row and market_row.get("board_dist_json"):
         board_dist = json.loads(market_row["board_dist_json"])
+    llm_ready, llm_msg = _llm_config_status()
+    calendar_rows = _build_trade_calendar(trade_date)
+    page_msg = request.query_params.get("msg", "")
     return templates.TemplateResponse(
         request,
         "daily.html",
         {
             "trade_date": trade_date,
+            "trade_date_input": _to_date_input(trade_date),
             "market": market_row,
             "review": review_row,
             "themes": theme_df.to_dict("records"),
             "leaders": leader_df.to_dict("records"),
             "board_dist": board_dist,
+            "calendar_rows": calendar_rows,
+            "llm_ready": llm_ready,
+            "llm_msg": llm_msg,
+            "page_msg": page_msg,
         },
     )
 
@@ -208,6 +377,12 @@ def daily_edit(
         review_status="active",
     )
     return RedirectResponse(url=f"/daily/{trade_date}", status_code=303)
+
+
+@app.post("/daily/{trade_date}/custom-summary")
+def daily_custom_summary(trade_date: str, custom_summary: str = Form("")):
+    _upsert_custom_summary(trade_date, custom_summary)
+    return RedirectResponse(url=f"/daily/{trade_date}?msg=" + quote("自定义总结已保存"), status_code=303)
 
 
 @app.post("/daily/{trade_date}/archive")

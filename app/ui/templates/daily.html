@@ -13,7 +13,75 @@
   </p>
 </div>
 
+{% if page_msg %}
+<div class="card" style="margin-bottom:14px;">
+  <span class="tag warn">提示</span>
+  <p style="margin-top:8px;color:var(--text);">{{ page_msg }}</p>
+</div>
+{% endif %}
+
 <div class="grid">
+  <div class="card">
+    <h2>交易日切换与复盘创建</h2>
+    <form method="get" action="/daily" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+      <input type="date" name="date" value="{{ trade_date_input }}" style="padding:8px;border-radius:8px;border:1px solid #3a455d;background:#111827;color:#f2f6ff;">
+      <button type="submit" style="padding:8px 14px;border-radius:999px;border:1px solid #48d4b5;background:rgba(72,212,181,.15);color:#f2f6ff;cursor:pointer;">查看该交易日</button>
+    </form>
+    <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;">
+      <form method="post" action="/ops/run-daily">
+        <input type="hidden" name="trade_date" value="{{ trade_date }}">
+        <button type="submit" style="padding:8px 14px;border-radius:999px;border:1px solid #48d4b5;background:rgba(72,212,181,.15);color:#f2f6ff;cursor:pointer;">一键采集+复盘</button>
+      </form>
+      <form method="post" action="/ops/create-review">
+        <input type="hidden" name="trade_date" value="{{ trade_date }}">
+        <button type="submit" style="padding:8px 14px;border-radius:999px;border:1px solid #f6c453;background:rgba(246,196,83,.15);color:#f2f6ff;cursor:pointer;">仅生成复盘文档</button>
+      </form>
+    </div>
+    {% if not market %}
+    <p style="margin-top:10px;color:#ffb4b8;">当前交易日未采集到数据。可点击“一键采集+复盘”创建记录。</p>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2>最近交易日日历（状态）</h2>
+    <table>
+      <thead>
+        <tr><th>日期</th><th>行情数据</th><th>复盘记录</th><th>状态</th></tr>
+      </thead>
+      <tbody>
+      {% for row in calendar_rows %}
+        <tr>
+          <td><a href="/daily/{{ row.trade_date }}" style="color:var(--text)">{{ row.trade_date }}</a></td>
+          <td>
+            {% if row.has_market_stats == 1 %}
+              <span class="tag ok">已采集</span>
+            {% else %}
+              <span class="tag risk">缺失</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if row.has_review_row == 1 %}
+              <span class="tag ok">已创建</span>
+            {% else %}
+              <span class="tag warn">待创建</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if row.review_status == "archived" %}
+              <span class="tag warn">已归档</span>
+            {% else %}
+              <span class="tag ok">活跃</span>
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if market %}
+<div class="grid" style="margin-top:14px;">
   <div class="card">
     <h2>市场指标</h2>
     <div class="kv">
@@ -53,48 +121,7 @@
     </table>
   </div>
 </div>
-
-<div class="card" style="margin-top:14px;">
-  <h2>主线题材</h2>
-  <table>
-    <thead>
-      <tr><th>排名</th><th>题材</th><th>阶段</th><th>涨停</th><th>连板</th><th>核心</th><th>容量</th></tr>
-    </thead>
-    <tbody>
-    {% for row in themes %}
-      <tr>
-        <td>{{ row.theme_rank }}</td>
-        <td>{{ row.theme_name }}</td>
-        <td>{{ row.theme_stage }}</td>
-        <td>{{ row.limit_up_count }}</td>
-        <td>{{ row.board_count }}</td>
-        <td>{{ row.core_stock }}</td>
-        <td>{{ row.capacity_stock }}</td>
-      </tr>
-    {% endfor %}
-    </tbody>
-  </table>
-</div>
-
-<div class="card" style="margin-top:14px;">
-  <h2>龙头梯队</h2>
-  <table>
-    <thead>
-      <tr><th>个股</th><th>角色</th><th>题材</th><th>板数</th><th>强度</th></tr>
-    </thead>
-    <tbody>
-    {% for row in leaders[:20] %}
-      <tr>
-        <td>{{ row.name }}</td>
-        <td>{{ row.role_type }}</td>
-        <td>{{ row.theme_name }}</td>
-        <td>{{ row.board_count }}</td>
-        <td>{{ "%.2f"|format(row.leader_score) }}</td>
-      </tr>
-    {% endfor %}
-    </tbody>
-  </table>
-</div>
+{% endif %}
 
 <div class="card" style="margin-top:14px;">
   <h2>人工编辑</h2>
@@ -149,4 +176,62 @@
     </form>
   </div>
 </div>
+
+<div class="card" style="margin-top:14px;">
+  <h2>自定义总结（大模型辅助）</h2>
+  {% if llm_ready %}
+  <p><span class="tag ok">模型配置已就绪</span> {{ llm_msg }}</p>
+  {% else %}
+  <p><span class="tag risk">请先配置模型</span> {{ llm_msg }}</p>
+  <p>操作：复制 <code>data/llm_config.example.json</code> 为 <code>data/llm_config.json</code>，填入你的模型地址、模型名和 Token。</p>
+  {% endif %}
+  <form method="post" action="/daily/{{ trade_date }}/custom-summary">
+    <textarea name="custom_summary" rows="6" style="width:100%;margin-top:6px;padding:8px;border-radius:8px;border:1px solid #3a455d;background:#111827;color:#f2f6ff;">{{ review.review_markdown if review else '' }}</textarea>
+    <button type="submit" style="margin-top:12px;padding:8px 14px;border-radius:999px;border:1px solid #48d4b5;background:rgba(72,212,181,.15);color:#f2f6ff;cursor:pointer;">保存自定义总结</button>
+  </form>
+</div>
+
+{% if market %}
+<div class="card" style="margin-top:14px;">
+  <h2>主线题材</h2>
+  <table>
+    <thead>
+      <tr><th>排名</th><th>题材</th><th>阶段</th><th>涨停</th><th>连板</th><th>核心</th><th>容量</th></tr>
+    </thead>
+    <tbody>
+    {% for row in themes %}
+      <tr>
+        <td>{{ row.theme_rank }}</td>
+        <td>{{ row.theme_name }}</td>
+        <td>{{ row.theme_stage }}</td>
+        <td>{{ row.limit_up_count }}</td>
+        <td>{{ row.board_count }}</td>
+        <td>{{ row.core_stock }}</td>
+        <td>{{ row.capacity_stock }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="card" style="margin-top:14px;">
+  <h2>龙头梯队</h2>
+  <table>
+    <thead>
+      <tr><th>个股</th><th>角色</th><th>题材</th><th>板数</th><th>强度</th></tr>
+    </thead>
+    <tbody>
+    {% for row in leaders[:20] %}
+      <tr>
+        <td>{{ row.name }}</td>
+        <td>{{ row.role_type }}</td>
+        <td>{{ row.theme_name }}</td>
+        <td>{{ row.board_count }}</td>
+        <td>{{ "%.2f"|format(row.leader_score) }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
 {% endblock %}

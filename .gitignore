@@ -17,6 +17,7 @@ env/
 
 # Local theme mapping
 data/theme_rules.json
+data/llm_config.json
 
 # OS
 .DS_Store

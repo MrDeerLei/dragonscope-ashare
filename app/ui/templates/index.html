@@ -7,6 +7,22 @@
   <p>当前最新交易日：<strong>{{ latest_date if latest_date else "暂无" }}</strong></p>
 </div>
 
+{% if page_msg %}
+<div class="card" style="margin-bottom:14px;">
+  <span class="tag warn">提示</span>
+  <p style="margin-top:8px;color:var(--text);">{{ page_msg }}</p>
+</div>
+{% endif %}
+
+<div class="card" style="margin-bottom:14px;">
+  <h2>今日采集与复盘</h2>
+  <p>交易收盘后可以手动一键执行“数据采集 + 单日复盘生成”。</p>
+  <form method="post" action="/ops/run-daily" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+    <input type="date" name="trade_date" value="{{ today_date[:4] ~ '-' ~ today_date[4:6] ~ '-' ~ today_date[6:8] }}" style="padding:8px;border-radius:8px;border:1px solid #3a455d;background:#111827;color:#f2f6ff;">
+    <button type="submit" style="padding:8px 14px;border-radius:999px;border:1px solid #48d4b5;background:rgba(72,212,181,.15);color:#f2f6ff;cursor:pointer;">一键采集+复盘</button>
+  </form>
+</div>
+
 {% if not latest_stats %}
 <div class="empty">数据库暂无数据，请先运行 <code>sync_day.py</code>。</div>
 {% else %}
